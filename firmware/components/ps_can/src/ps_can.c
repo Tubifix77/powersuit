@@ -82,7 +82,10 @@ static bool on_rx_done(twai_node_handle_t handle, const twai_rx_done_event_data_
     (void)handle;
     (void)edata;
     struct ps_can_ctx *ctx = (struct ps_can_ctx *)user_ctx;
-    uint8_t buf[8];
+    /* Zeroed deliberately: the driver fills only the bytes it received, and a
+     * frame whose DLC overstates that would otherwise put uninitialised stack
+     * contents onto the CAN plane. Eight bytes in an ISR is free. */
+    uint8_t buf[8] = { 0 };
     twai_frame_t rx = { 0 };
     rx.buffer = buf;
     rx.buffer_len = sizeof(buf);
