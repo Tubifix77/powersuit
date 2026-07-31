@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cloud-ai-core"
+version = "0.1.0"
+description = "Powersuit Node 9: cloud AI core (link gateway, RAG, LLM engine, TTS) — docs/link-protocol.md server side"
+requires-python = ">=3.12"
+dependencies = [
+    "websockets>=17,<18",
+    "numpy>=2.3,<3",
+    "httpx>=0.27,<1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "pytest-asyncio>=1.4,<2"]
+grpc = ["grpcio>=1.83", "grpcio-tools", "protobuf>=5"]
+piper = ["piper-tts"]
+
+[project.scripts]
+cloud-ai-core = "cloud_ai_core.main:main"
+
+[tool.setuptools.packages.find]
+include = ["cloud_ai_core*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

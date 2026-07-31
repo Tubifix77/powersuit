@@ -1,0 +1,96 @@
+<?xml version="1.0"?>
+<!-- Minimal powersuit kinematic tree for robot_state_publisher + EKF frames.
+     Joint names MUST match the bridge/aggregator: <limb>_{elbow,wrist|hip,knee}.
+     Link lengths match suit_ik/limb_params.py (arms 0.30/0.28, legs 0.45/0.43). -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="powersuit">
+
+  <xacro:property name="arm_l1" value="0.30"/>
+  <xacro:property name="arm_l2" value="0.28"/>
+  <xacro:property name="leg_l1" value="0.45"/>
+  <xacro:property name="leg_l2" value="0.43"/>
+
+  <xacro:macro name="stub_inertial" params="mass">
+    <inertial>
+      <mass value="${mass}"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="seg_link" params="name length mass">
+    <link name="${name}">
+      <visual>
+        <origin xyz="${length/2} 0 0" rpy="0 ${pi/2} 0"/>
+        <geometry><cylinder radius="0.035" length="${length}"/></geometry>
+      </visual>
+      <xacro:stub_inertial mass="${mass}"/>
+    </link>
+  </xacro:macro>
+
+  <!-- limb: 2-link planar chain in the limb root frame (X forward, Y up-plane) -->
+  <xacro:macro name="limb" params="prefix j1 j2 l1 l2 x y z">
+    <joint name="${prefix}_root_joint" type="fixed">
+      <parent link="torso"/>
+      <child link="${prefix}_root"/>
+      <origin xyz="${x} ${y} ${z}"/>
+    </joint>
+    <link name="${prefix}_root"><xacro:stub_inertial mass="0.2"/></link>
+
+    <joint name="${prefix}_${j1}" type="revolute">
+      <parent link="${prefix}_root"/>
+      <child link="${prefix}_upper"/>
+      <axis xyz="0 0 1"/>
+      <limit lower="-2.62" upper="2.62" effort="60" velocity="6"/>
+    </joint>
+    <xacro:seg_link name="${prefix}_upper" length="${l1}" mass="1.2"/>
+
+    <joint name="${prefix}_${j2}" type="revolute">
+      <parent link="${prefix}_upper"/>
+      <child link="${prefix}_lower"/>
+      <origin xyz="${l1} 0 0"/>
+      <axis xyz="0 0 1"/>
+      <limit lower="-2.80" upper="2.80" effort="60" velocity="6"/>
+    </joint>
+    <xacro:seg_link name="${prefix}_lower" length="${l2}" mass="0.9"/>
+  </xacro:macro>
+
+  <!-- base + torso -->
+  <link name="base_link"><xacro:stub_inertial mass="1.0"/></link>
+  <joint name="torso_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="torso"/>
+    <origin xyz="0 0 0.30"/>
+  </joint>
+  <link name="torso">
+    <visual><geometry><box size="0.30 0.35 0.55"/></geometry></visual>
+    <xacro:stub_inertial mass="8.0"/>
+  </link>
+
+  <!-- helmet -->
+  <joint name="helmet_joint" type="fixed">
+    <parent link="torso"/>
+    <child link="helmet"/>
+    <origin xyz="0 0 0.45"/>
+  </joint>
+  <link name="helmet">
+    <visual><geometry><sphere radius="0.12"/></geometry></visual>
+    <xacro:stub_inertial mass="1.5"/>
+  </link>
+
+  <!-- torso-rigid IMU on the flight pack (network-map §12.6) -->
+  <joint name="imu_torso_joint" type="fixed">
+    <parent link="torso"/>
+    <child link="imu_torso"/>
+    <origin xyz="-0.14 0 0.10"/>
+  </joint>
+  <link name="imu_torso"><xacro:stub_inertial mass="0.05"/></link>
+
+  <!-- limbs; roots offset from torso center -->
+  <xacro:limb prefix="arm_right" j1="elbow" j2="wrist"
+              l1="${arm_l1}" l2="${arm_l2}" x="0.0" y="-0.25" z="0.20"/>
+  <xacro:limb prefix="arm_left" j1="elbow" j2="wrist"
+              l1="${arm_l1}" l2="${arm_l2}" x="0.0" y="0.25" z="0.20"/>
+  <xacro:limb prefix="leg_right" j1="hip" j2="knee"
+              l1="${leg_l1}" l2="${leg_l2}" x="0.0" y="-0.12" z="-0.30"/>
+  <xacro:limb prefix="leg_left" j1="hip" j2="knee"
+              l1="${leg_l1}" l2="${leg_l2}" x="0.0" y="0.12" z="-0.30"/>
+</robot>

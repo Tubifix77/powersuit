@@ -1,0 +1,18 @@
+# Bearer table for the Node 8 cloud gateway (docs/link-protocol.md §5).
+# priority: lower wins. rtt_budget_ms: health threshold per bearer class.
+bearers:
+  - name: 5g
+    url: "wss://cloud.powersuit.example:8443/link"
+    priority: 1
+    rtt_budget_ms: 150
+  - name: wifi
+    url: "wss://192.168.10.20:8443/link"
+    priority: 2
+    rtt_budget_ms: 80
+  - name: sat
+    url: "wss://sat.powersuit.example:8443/link"
+    priority: 3
+    rtt_budget_ms: 1200
+
+# CA bundle for TLS verification (self-signed CA supported for bench setups).
+ca_bundle: /etc/powersuit/ca.pem

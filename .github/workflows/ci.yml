@@ -1,0 +1,100 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python-tests:
+    name: python ${{ matrix.python }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, python: "3.12" }
+          - { os: ubuntu-latest, python: "3.14" }
+          - { os: windows-latest, python: "3.14" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -e "./common/python[dev]" -e "./cloud[dev]" -e ./tools/suit_sim
+      - run: python -m pytest common/python/tests cloud/tests tools/suit_sim/tests -q
+
+  vectors-fresh:
+    name: cross-language vectors are regenerated
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python common/python/tests/gen_vectors.py
+      - run: git diff --exit-code -- common/python/tests/vectors firmware/tests/host/vectors
+
+  cloud-docker:
+    name: cloud image (3.12 parity)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --target test -f cloud/Dockerfile .
+      - run: docker build -f cloud/Dockerfile .
+
+  c-host-tests:
+    name: C host tests (protocol + pure firmware modules)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S firmware/tests/host -B build/host -G "Unix Makefiles"
+      - run: cmake --build build/host -j
+      - run: ctest --test-dir build/host --output-on-failure
+
+  ros-build-test:
+    name: ROS 2 Jazzy workspace
+    runs-on: ubuntu-latest
+    container: ros:jazzy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: /deps
+          key: ros-deps-${{ hashFiles('orchestrator/ros2_ws/deps.repos') }}
+      - name: build and test
+        env:
+          REPO: ${{ github.workspace }}
+          DEPS: /deps
+          OUT: /tmp/out
+          ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
+        run: bash tools/ros_ci.sh
+
+  firmware-builds:
+    name: firmware ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { app: node_limb, target: esp32s3 }
+          - { app: node_flight, target: esp32s3 }
+          - { app: node_helmet, target: esp32s3 }
+          - { app: node_chest_hub, target: esp32p4 }
+    steps:
+      - uses: actions/checkout@v4
+      - name: micro-ROS build deps
+        run: |
+          . $IDF_PATH/export.sh
+          pip3 install catkin_pkg colcon-common-extensions lark "empy==3.3.4"
+          git config --global --add safe.directory '*'
+      - name: fetch vendored components
+        run: bash firmware/tools/fetch_deps.sh
+      - name: build
+        env:
+          IDF_TARGET: ${{ matrix.target }}
+        run: |
+          . $IDF_PATH/export.sh
+          cd firmware/apps/${{ matrix.app }}
+          idf.py build

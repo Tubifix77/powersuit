@@ -1,0 +1,14 @@
+# Vendored micro-ROS agent stack (no jazzy apt package exists for micro-ros-agent).
+# Import with: vcs import <deps_ws>/src < deps.repos
+# Branch existence verified 2026-07-31:
+#   https://github.com/micro-ROS/micro-ROS-Agent/tree/jazzy
+#   https://github.com/micro-ROS/micro_ros_msgs/tree/jazzy
+repositories:
+  micro-ROS-Agent:
+    type: git
+    url: https://github.com/micro-ROS/micro-ROS-Agent.git
+    version: jazzy
+  micro_ros_msgs:
+    type: git
+    url: https://github.com/micro-ROS/micro_ros_msgs.git
+    version: jazzy

@@ -1,0 +1,32 @@
+menu "ps_spibridge (Node 7 SPI slave bridge)"
+
+    comment "GPIO 7/9/10/8 are the ESP32-P4 SPI2 (GPSPI2) IO_MUX pad set (CS0/SCLK/MISO/MOSI)."
+    comment "SPI2 is the only slave-capable controller on the P4; IO_MUX routing is required"
+    comment "headroom for the 20 MHz qualification point (docs/network-map.md section 12.1)."
+
+    config PS_SPIB_MOSI_GPIO
+        int "SPI2 MOSI GPIO"
+        range 0 54
+        default 8
+
+    config PS_SPIB_MISO_GPIO
+        int "SPI2 MISO GPIO"
+        range 0 54
+        default 10
+
+    config PS_SPIB_SCLK_GPIO
+        int "SPI2 SCLK GPIO"
+        range 0 54
+        default 9
+
+    config PS_SPIB_CS_GPIO
+        int "SPI2 CS0 GPIO"
+        range 0 54
+        default 7
+
+    config PS_SPIB_DATA_READY_GPIO
+        int "DATA_READY GPIO (out, high while uplink pending)"
+        range 0 54
+        default 4
+
+endmenu

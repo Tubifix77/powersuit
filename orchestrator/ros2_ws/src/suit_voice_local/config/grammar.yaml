@@ -1,0 +1,50 @@
+# Local voice intent grammar (offline-first: ARCHITECTURE.md / CLAUDE.md).
+# A pattern matches when ALL its keywords appear in the normalized utterance.
+# Longest matching pattern wins; ties go to the first-declared intent.
+# Slots: named typed values extracted from the utterance (number = first numeric token).
+intents:
+  clear_estop:
+    patterns:
+      - [clear, estop]
+      - [clear, e, stop]
+      - [clear, emergency, stop]
+      - [reset, estop]
+  engage_estop:
+    patterns:
+      - [emergency, stop]
+      - [estop]
+      - [e, stop]
+      - [kill, power]
+  deploy_airbrakes:
+    patterns:
+      - [deploy, airbrakes]
+      - [deploy, air, brakes]
+      - [airbrakes, out]
+      - [full, airbrakes]
+  retract_airbrakes:
+    patterns:
+      - [retract, airbrakes]
+      - [retract, air, brakes]
+      - [airbrakes, in]
+      - [stow, airbrakes]
+  status_report:
+    patterns:
+      - [status, report]
+      - [status]
+      - [report]
+      - [systems, check]
+  power_level:
+    patterns:
+      - [power, level]
+      - [battery, level]
+      - [battery]
+      - [charge]
+  hud_brightness:
+    patterns:
+      - [hud, brightness]
+      - [brightness]
+    slots:
+      value: number
+  # Catch-all: anything unmatched is forwarded to Node 9 (never on the critical path).
+  cloud_query:
+    fallback: true

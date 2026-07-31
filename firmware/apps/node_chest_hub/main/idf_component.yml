@@ -1,0 +1,4 @@
+dependencies:
+  idf: ">=5.5"
+  # Arc-reactor status ring (24 x WS2812), RMT backend.
+  espressif/led_strip: "~3.0.3"

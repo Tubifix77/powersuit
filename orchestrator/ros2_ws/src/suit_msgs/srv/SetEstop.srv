@@ -1,0 +1,6 @@
+# Engage or clear the suit-wide e-stop via the bridge (docs/safety.md §3).
+bool engage          # true = latch + broadcast ESTOP, false = CLEAR_ESTOP
+string reason
+---
+bool ok
+string detail

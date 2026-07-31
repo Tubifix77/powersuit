@@ -1,0 +1,11 @@
+# node_chest_hub — ESP32-P4 (appended after ../../sdkconfig.defaults.common)
+CONFIG_IDF_TARGET="esp32p4"
+
+# Single 8 MB app partition: the hub image (gateway + BMS, no micro-ROS) is
+# small; 8 MB is the conservative fit for the bench module population.
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+
+# PSRAM deliberately left OFF: the P4 module population is board-dependent and
+# everything on the hub (queues, DMA SPI buffers, LED framebuffer) fits in
+# internal L2MEM. Enable CONFIG_SPIRAM only once the flight board is fixed.
