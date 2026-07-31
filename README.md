@@ -1,8 +1,17 @@
 # Powersuit
 
+[![ci](https://github.com/Tubifix77/powersuit/actions/workflows/ci.yml/badge.svg)](https://github.com/Tubifix77/powersuit/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Distributed firmware and software for a nine-node cybernetic exoskeleton: seven ESP32
 edge nodes on two isolated CAN buses, a Raspberry Pi 5 class orchestrator running ROS 2,
 and a GPU cloud service reachable over 5G.
+
+> **Status: builds and simulates; has never run on hardware.**
+> Every tier compiles and its logic is tested — 253 Python tests, 11 C suites under
+> `-Werror`, four firmware images, a ROS 2 workspace, and ten end-to-end scenarios
+> against a simulated suit. Nothing below the driver layer has touched silicon.
+> See [Verified vs unproven](#verified-vs-unproven).
 
 The system specification is [`ARCHITECTURE.md`](ARCHITECTURE.md). The *normative engineering
 contract* — the one every node actually codes against — is [`docs/network-map.md`](docs/network-map.md),
@@ -161,3 +170,63 @@ ros2 launch suit_bringup sim.launch.py mock_port:=9700
   deterministic mock. Point it at a real model with the `ollama` profile (CPU, no account
   needed) or the `gpu` profile (vLLM), both through the same OpenAI-compatible adapter.
 - **Nodes 1–7**: `idf.py flash` per app; see the per-app board headers for the bench pinouts.
+
+## Verified vs unproven
+
+Being explicit, because "it compiles" and "it works" are very different claims for a
+machine that applies force to a human body.
+
+**Verified in CI and locally**
+
+| Tier | What is actually checked |
+|------|--------------------------|
+| Protocol contract | 85 tests; the C and Python implementations are locked together by generated vectors |
+| Cloud (Node 9) | 73 tests against the real server over a real WebSocket |
+| Orchestrator (Node 8) | 74 Python tests, 3 C++ gtest suites, full `colcon build` |
+| Pure C firmware logic | 11 suites under `-Wall -Wextra -Werror` — FOC maths, Mahony filter, safety state machine, CAN routing, ADPCM |
+| Firmware images | All four apps build for ESP32-S3/P4, with and without micro-ROS |
+| Whole-suit behaviour | 10 scenarios: watchdog trip and re-arm timing, e-stop propagation and replay rejection, SPI corruption recovery, voice round-trip, link failover, local-beats-cloud ordering |
+| Static analysis | `cppcheck` clean |
+
+**Not proven, and only provable on hardware**
+
+Peripheral configuration (does the MCPWM emit the waveform the registers imply?),
+real-time behaviour under load, SPI signal integrity at 20 MHz, CAN arbitration at the
+predicted bus load, stack sizing, and the analog BMS trip chain. The bench pinouts in
+each `board_*.h` are plausible defaults, not a verified schematic.
+
+[`docs/bringup.md`](docs/bringup.md) is the order to prove all of that in, arranged so
+each step is verifiable before anything above it can hurt someone.
+
+## Safety
+
+This drives motors attached to a person. Two things are worth stating plainly:
+
+The design fails toward limpness on purpose. Lose the heartbeat for 50 ms and every
+limb goes back-drivable; kill the orchestrator and the whole suit goes slack. That is
+the correct behaviour, not a bug, and any change that makes the suit *hold* through a
+fault is a change in the wrong direction.
+
+The sub-microsecond battery short-circuit trip is **hardware** — an analog comparator
+latching the gate. Firmware only observes it. `ARCHITECTURE.md` asks for it in software;
+[`docs/safety.md`](docs/safety.md) §4 explains why that cannot honestly be delivered
+there. Do not reimplement it in firmware because the hardware is not ready yet.
+
+The MIT licence's warranty disclaimer is not a formality here. Nobody has run this on a
+real suit.
+
+## Contributing
+
+The contract in [`docs/`](docs) is normative: if a change alters behaviour on the wire,
+in the safety state machine, or in the cloud link, the document changes in the same
+commit. [`CLAUDE.md`](CLAUDE.md) lists the invariants a change must not break and the
+reasoning behind each.
+
+```bash
+bash tools/dev.sh setup && bash tools/dev.sh test    # no Docker needed
+bash tools/verify.sh                                  # every tier, ~20 lines out
+```
+
+## Licence
+
+[MIT](LICENSE) © 2026 Tubifix77
