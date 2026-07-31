@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>suit_canspi_bridge</name>
+  <version>0.1.0</version>
+  <description>Node 8 SPI bridge to the chest hub: TELEM/ROS synthesis, XRCE tunnel, safety heartbeat (docs/network-map.md)</description>
+  <maintainer email="twb@systematic.com">Powersuit Team</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>trajectory_msgs</depend>
+  <depend>diagnostic_msgs</depend>
+  <depend>suit_msgs</depend>
+  <!-- libgpiod v2 (<gpiod.h>, apt: libgpiod-dev) gives real DATA_READY GPIO
+       support on the Pi. Deliberately NOT a rosdep <depend> here: its
+       rosdep-key resolution is not guaranteed across environments, and the
+       whole point of the __has_include guard in spidev_transport.cpp is
+       that this package must build without it (1 kHz polling fallback).
+       Installed explicitly by orchestrator/scripts/install_pi.sh. -->
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

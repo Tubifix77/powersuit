@@ -1,0 +1,33 @@
+menu "Powersuit node_limb Configuration"
+
+    choice PS_NODE_ID
+        prompt "Limb node identity"
+        default PS_NODE_IS_ARM_RIGHT
+        help
+            One firmware image serves Nodes 1-4 (docs/network-map.md section 1
+            node registry); this choice selects which bench harness and board
+            table (board_limb.h) the build targets. Joints per limb: arms
+            elbow=0/wrist=1, legs hip=0/knee=1.
+
+        config PS_NODE_IS_ARM_RIGHT
+            bool "arm_right  (node 1, CAN bus 1)"
+        config PS_NODE_IS_ARM_LEFT
+            bool "arm_left   (node 2, CAN bus 1)"
+        config PS_NODE_IS_LEG_RIGHT
+            bool "leg_right  (node 3, CAN bus 2)"
+        config PS_NODE_IS_LEG_LEFT
+            bool "leg_left   (node 4, CAN bus 2)"
+    endchoice
+
+    config PS_LIMB_NODE_ID
+        int
+        default 1 if PS_NODE_IS_ARM_RIGHT
+        default 2 if PS_NODE_IS_ARM_LEFT
+        default 3 if PS_NODE_IS_LEG_RIGHT
+        default 4 if PS_NODE_IS_LEG_LEFT
+        help
+            Numeric node ID (powersuit_proto/can_id.h PS_NODE_ARM_R..LEG_L),
+            used verbatim as the CAN source address and to pick the board
+            table / micro-ROS node name in app_main.c.
+
+endmenu

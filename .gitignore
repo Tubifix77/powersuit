@@ -27,3 +27,6 @@ dependencies.lock
 .idea/
 .DS_Store
 Thumbs.db
+
+# verification logs (tools/verify.sh)
+.verify-logs/

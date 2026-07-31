@@ -1,0 +1,116 @@
+cmake_minimum_required(VERSION 3.16)
+project(suit_canspi_bridge)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(trajectory_msgs REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
+find_package(suit_msgs REQUIRED)
+find_package(Threads REQUIRED)
+
+# --- powersuit_proto (C protocol contract) ----------------------------------
+# This package lives at orchestrator/ros2_ws/src/suit_canspi_bridge, i.e. four
+# directories below the repo root (orchestrator/ -> ros2_ws/ -> src/ ->
+# suit_canspi_bridge/). The repo root's common/c is therefore
+# ../../../../common/c from here. We compile its sources directly into a
+# small static lib rather than depending on an installed/exported target, and
+# we NEVER reimplement framing/CRC/ADPCM logic in C++ — only call into this.
+set(POWERSUIT_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../common/c)
+if(NOT EXISTS ${POWERSUIT_PROTO_DIR}/include/powersuit_proto/spi_frame.h)
+  message(FATAL_ERROR
+    "powersuit_proto not found at ${POWERSUIT_PROTO_DIR} — this package "
+    "must be built inside the full powersuit repo checkout (relative path "
+    "hard-codes the orchestrator/ros2_ws/src/<pkg> depth).")
+endif()
+
+add_library(powersuit_proto_c STATIC
+  ${POWERSUIT_PROTO_DIR}/src/crc16.c
+  ${POWERSUIT_PROTO_DIR}/src/spi_frame.c
+  ${POWERSUIT_PROTO_DIR}/src/adpcm_ima.c
+)
+target_include_directories(powersuit_proto_c PUBLIC ${POWERSUIT_PROTO_DIR}/include)
+set_target_properties(powersuit_proto_c PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# --- optional libgpiod v2 (DATA_READY GPIO) ---------------------------------
+# spidev_transport.cpp guards <gpiod.h> with __has_include and falls back to
+# 1 kHz polling when it's absent, so this package builds in a bare container
+# without libgpiod-dev. When both the header and library are present we wire
+# them in so the real GPIO path compiles and links.
+find_path(GPIOD_INCLUDE_DIR gpiod.h)
+find_library(GPIOD_LIBRARY gpiod)
+if(GPIOD_INCLUDE_DIR AND GPIOD_LIBRARY)
+  message(STATUS "suit_canspi_bridge: libgpiod found (${GPIOD_LIBRARY}) — DATA_READY GPIO enabled")
+else()
+  message(STATUS "suit_canspi_bridge: libgpiod NOT found — DATA_READY falls back to 1 kHz polling")
+endif()
+
+# openpty()/util: on glibc >= 2.34 it lives in libc; -lutil is a harmless
+# empty compat lib there but doesn't exist on every platform, so only link
+# it when found.
+find_library(UTIL_LIBRARY util)
+
+set(BRIDGE_CORE_SOURCES
+  src/spidev_transport.cpp
+  src/mock_transport.cpp
+  src/frame_parser.cpp
+  src/xrce_demux.cpp
+  src/telem_synth.cpp
+  src/heartbeat.cpp
+  src/estop_service.cpp
+  src/audio_relay.cpp
+)
+
+add_library(suit_canspi_bridge_core STATIC ${BRIDGE_CORE_SOURCES})
+target_include_directories(suit_canspi_bridge_core PUBLIC
+  include
+)
+target_link_libraries(suit_canspi_bridge_core PUBLIC
+  powersuit_proto_c
+  Threads::Threads
+)
+if(UTIL_LIBRARY)
+  target_link_libraries(suit_canspi_bridge_core PUBLIC ${UTIL_LIBRARY})
+endif()
+if(GPIOD_INCLUDE_DIR AND GPIOD_LIBRARY)
+  target_include_directories(suit_canspi_bridge_core PUBLIC ${GPIOD_INCLUDE_DIR})
+  target_link_libraries(suit_canspi_bridge_core PUBLIC ${GPIOD_LIBRARY})
+endif()
+ament_target_dependencies(suit_canspi_bridge_core PUBLIC
+  rclcpp std_msgs sensor_msgs trajectory_msgs diagnostic_msgs suit_msgs
+)
+
+add_executable(suit_canspi_bridge_node src/main.cpp)
+target_link_libraries(suit_canspi_bridge_node suit_canspi_bridge_core)
+ament_target_dependencies(suit_canspi_bridge_node
+  rclcpp std_msgs sensor_msgs trajectory_msgs diagnostic_msgs suit_msgs
+)
+
+install(TARGETS suit_canspi_bridge_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+install(DIRECTORY include/
+  DESTINATION include
+)
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(test_frame_parser test/test_frame_parser.cpp)
+  target_link_libraries(test_frame_parser suit_canspi_bridge_core)
+
+  ament_add_gtest(test_xrce_demux test/test_xrce_demux.cpp)
+  target_link_libraries(test_xrce_demux suit_canspi_bridge_core)
+
+  ament_add_gtest(test_heartbeat_gate test/test_heartbeat_gate.cpp)
+  target_link_libraries(test_heartbeat_gate suit_canspi_bridge_core)
+endif()
+
+ament_package()
