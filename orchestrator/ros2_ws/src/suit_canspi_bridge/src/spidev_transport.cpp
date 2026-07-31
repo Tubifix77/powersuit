@@ -10,13 +10,20 @@
 #include <unistd.h>
 #include <linux/spi/spidev.h>
 
-// libgpiod v2 (apt: libgpiod-dev on Ubuntu 24.04). Guarded so this package
-// builds in a bare container without it — polling is then the only path.
+// libgpiod is optional and comes in two incompatible generations: Ubuntu 24.04
+// (the Node 8 target) ships 1.6, newer distros ship 2.x. CMake probes for a
+// 2.x-only symbol and defines PS_GPIOD_V2; both paths are implemented below.
+// Without the library at all, polling is the only path and the bridge still
+// works — it just wakes on a timer instead of on the hub's DATA_READY edge.
 #if defined(__has_include)
 #if __has_include(<gpiod.h>)
 #include <gpiod.h>
 #define SUIT_CANSPI_BRIDGE_HAVE_GPIOD 1
 #endif
+#endif
+
+#ifndef PS_GPIOD_V2
+#define PS_GPIOD_V2 0
 #endif
 
 namespace suit_canspi_bridge {
@@ -27,7 +34,11 @@ struct SpidevTransport::Impl {
   bool gpio_ready = false;
 #ifdef SUIT_CANSPI_BRIDGE_HAVE_GPIOD
   gpiod_chip* chip = nullptr;
+#if PS_GPIOD_V2
   gpiod_line_request* request = nullptr;
+#else
+  gpiod_line* line = nullptr;
+#endif
 #endif
 
   ~Impl() {
@@ -35,9 +46,15 @@ struct SpidevTransport::Impl {
       ::close(fd);
     }
 #ifdef SUIT_CANSPI_BRIDGE_HAVE_GPIOD
+#if PS_GPIOD_V2
     if (request != nullptr) {
       gpiod_line_request_release(request);
     }
+#else
+    if (line != nullptr) {
+      gpiod_line_release(line);
+    }
+#endif
     if (chip != nullptr) {
       gpiod_chip_close(chip);
     }
@@ -51,6 +68,7 @@ struct SpidevTransport::Impl {
     if (cfg.gpiochip.empty()) {
       return false;
     }
+#if PS_GPIOD_V2
     chip = gpiod_chip_open(cfg.gpiochip.c_str());
     if (chip == nullptr) {
       return false;
@@ -89,6 +107,22 @@ struct SpidevTransport::Impl {
 
     gpio_ready = (request != nullptr);
     return gpio_ready;
+#else   /* libgpiod 1.x */
+    chip = gpiod_chip_open(cfg.gpiochip.c_str());
+    if (chip == nullptr) {
+      return false;
+    }
+    line = gpiod_chip_get_line(chip, cfg.gpio_line);
+    if (line == nullptr) {
+      return false;
+    }
+    if (gpiod_line_request_rising_edge_events(line, "suit_canspi_bridge") != 0) {
+      line = nullptr;
+      return false;
+    }
+    gpio_ready = true;
+    return true;
+#endif
 #else
     return false;
 #endif
@@ -138,6 +172,7 @@ bool SpidevTransport::xfer(const uint8_t* tx, uint8_t* rx, size_t len) {
 
 bool SpidevTransport::wait_data_ready(std::chrono::milliseconds timeout) {
 #ifdef SUIT_CANSPI_BRIDGE_HAVE_GPIOD
+#if PS_GPIOD_V2
   if (impl_->gpio_ready && impl_->request != nullptr) {
     const int64_t timeout_ns =
         std::chrono::duration_cast<std::chrono::nanoseconds>(timeout).count();
@@ -152,6 +187,22 @@ bool SpidevTransport::wait_data_ready(std::chrono::milliseconds timeout) {
     }
     return false;
   }
+#else   /* libgpiod 1.x */
+  if (impl_->gpio_ready && impl_->line != nullptr) {
+    const auto secs = std::chrono::duration_cast<std::chrono::seconds>(timeout);
+    struct timespec ts;
+    ts.tv_sec = secs.count();
+    ts.tv_nsec =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(timeout - secs).count();
+    const int rc = gpiod_line_event_wait(impl_->line, &ts);
+    if (rc > 0) {
+      struct gpiod_line_event ev;
+      gpiod_line_event_read(impl_->line, &ev);   // drain, edge itself is the signal
+      return true;
+    }
+    return false;
+  }
+#endif
 #endif
   // Polling fallback: pace the caller at ~1 kHz regardless of a real
   // DATA_READY signal, per the task contract for bare-container builds.

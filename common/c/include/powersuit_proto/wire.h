@@ -222,8 +222,14 @@ typedef struct PS_PACKED {
     uint32_t git_short;
 } ps_version_t;
 
-/* --- Size locks (classic CAN payload limit) ------------------------------------- */
+/* --- Size locks (classic CAN payload limit) -------------------------------------
+ * The Node 8 bridge is C++, so this header has to compile in both languages:
+ * _Static_assert is C, static_assert is C++. */
+#ifdef __cplusplus
+#define PS_WIRE_SIZE_ASSERT(t) static_assert(sizeof(t) <= 8, #t " exceeds 8 bytes")
+#else
 #define PS_WIRE_SIZE_ASSERT(t) _Static_assert(sizeof(t) <= 8, #t " exceeds 8 bytes")
+#endif
 PS_WIRE_SIZE_ASSERT(ps_heartbeat_t);
 PS_WIRE_SIZE_ASSERT(ps_estop_t);
 PS_WIRE_SIZE_ASSERT(ps_clear_estop_t);
