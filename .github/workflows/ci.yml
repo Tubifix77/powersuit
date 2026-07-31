@@ -74,6 +74,17 @@ jobs:
           ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
         run: bash tools/ros_ci.sh
 
+  cppcheck:
+    name: static analysis (C)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq cppcheck
+      - run: bash tools/cppcheck.sh --strict
+
+  # Fast path: every app, micro-ROS compiled out. This is the configuration a
+  # bench board runs during bring-up, and it is what guards the #if
+  # PS_UROS_ENABLED == 0 branches. A couple of minutes per app.
   firmware-builds:
     name: firmware ${{ matrix.app }}
     runs-on: ubuntu-latest
@@ -88,17 +99,79 @@ jobs:
           - { app: node_chest_hub, target: esp32p4 }
     steps:
       - uses: actions/checkout@v4
-      - name: micro-ROS build deps
+      - uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ matrix.app }}-${{ github.sha }}
+          restore-keys: ccache-${{ matrix.app }}-
+      - name: build
+        env:
+          IDF_TARGET: ${{ matrix.target }}
+          IDF_CCACHE_ENABLE: 1
+        run: |
+          . $IDF_PATH/export.sh
+          git config --global --add safe.directory '*'
+          cd firmware/apps/${{ matrix.app }}
+          idf.py build
+
+  # libmicroros is the whole ROS 2 client stack built from source: ~25 minutes
+  # cold, and byte-identical for every esp32s3 app. Build it once here, key the
+  # cache on the vendored commit, and let the app jobs restore it. It only
+  # rebuilds when firmware/third_party.lock changes.
+  uros-lib:
+    name: libmicroros (esp32s3)
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.5
+    outputs:
+      key: ${{ steps.k.outputs.key }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: k
+        run: echo "key=uros-esp32s3-idf5.5.5-${{ hashFiles('firmware/third_party.lock') }}" >> "$GITHUB_OUTPUT"
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: firmware/third_party
+          key: ${{ steps.k.outputs.key }}
+      - name: vendor and build
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          IDF_TARGET: esp32s3
         run: |
           . $IDF_PATH/export.sh
           pip3 install catkin_pkg colcon-common-extensions lark "empy==3.3.4"
           git config --global --add safe.directory '*'
-      - name: fetch vendored components
-        run: bash firmware/tools/fetch_deps.sh
+          bash firmware/tools/fetch_deps.sh
+          # Building any one app produces libmicroros inside the vendored
+          # component, which is what the cache actually carries.
+          cd firmware/apps/node_limb
+          idf.py build
+
+  # The XRCE plane: the same three apps with micro-ROS actually linked in.
+  # Verifies the #if PS_UROS_ENABLED == 1 branches, which the fast path skips.
+  firmware-uros:
+    name: firmware ${{ matrix.app }} (micro-ROS)
+    needs: uros-lib
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.5
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [node_limb, node_flight, node_helmet]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: firmware/third_party
+          key: ${{ needs.uros-lib.outputs.key }}
+          fail-on-cache-miss: true
       - name: build
         env:
-          IDF_TARGET: ${{ matrix.target }}
+          IDF_TARGET: esp32s3
+          IDF_CCACHE_ENABLE: 1
         run: |
           . $IDF_PATH/export.sh
+          pip3 install catkin_pkg colcon-common-extensions lark "empy==3.3.4"
+          git config --global --add safe.directory '*'
           cd firmware/apps/${{ matrix.app }}
           idf.py build
