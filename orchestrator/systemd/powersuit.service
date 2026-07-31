@@ -1,0 +1,23 @@
+[Unit]
+Description=Powersuit Node 8 orchestrator
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/powersuit/env
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && source @DEPS@/install/setup.bash && source @REPO@/orchestrator/ros2_ws/install/setup.bash && exec ros2 launch suit_bringup suit.launch.py'
+Restart=on-failure
+RestartSec=2
+
+# The bridge escalates its own transport thread to SCHED_FIFO; CAP_SYS_NICE lets
+# it do so without running the whole graph as root.
+AmbientCapabilities=CAP_SYS_NICE
+CapabilityBoundingSet=CAP_SYS_NICE
+SupplementaryGroups=spi gpio dialout
+
+# The suit must not be killed by the OOM reaper mid-flight.
+OOMScoreAdjust=-500
+
+[Install]
+WantedBy=multi-user.target

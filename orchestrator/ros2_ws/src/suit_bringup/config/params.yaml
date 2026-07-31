@@ -1,0 +1,45 @@
+# Node 8 parameters. Anything safety-relevant is duplicated from the contract
+# rather than invented here; changing it means changing docs/network-map.md too.
+/**:
+  ros__parameters:
+    use_sim_time: false
+
+suit_canspi_bridge:
+  ros__parameters:
+    transport: spidev            # spidev | mock
+    device: /dev/spidev0.0
+    speed_hz: 20000000           # docs/network-map.md §12.1
+    mock_host: 127.0.0.1
+    mock_port: 9700
+    gpiochip: ""                 # empty -> poll instead of waiting on DATA_READY
+    data_ready_line: 0
+    spi_rate_hz: 1000
+    heartbeat_hz: 100            # docs/safety.md §2; do not lower
+    estop_counter_path: /var/lib/powersuit/estop_counter
+    imu_orientation_variance: 0.02
+    imu_angular_velocity_variance: 0.01
+    imu_linear_acceleration_variance: 0.08
+
+suit_ik:
+  ros__parameters:
+    rate_hz: 100
+    max_joint_vel: 2.0           # rad/s
+
+flight_mapper:
+  ros__parameters:
+    rate_hz: 20
+
+suit_voice_local:
+  ros__parameters:
+    confidence_floor: 0.55
+
+suit_cloud_gateway:
+  ros__parameters:
+    enable_tls_verify: true
+    telemetry_hz: 5
+
+suit_blackbox:
+  ros__parameters:
+    ring_bytes: 67108864         # 64 MiB
+    snapshot_dir: /var/lib/powersuit
+    sample_hz: 10
