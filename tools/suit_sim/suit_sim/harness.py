@@ -50,13 +50,15 @@ async def elapsed_until(predicate: Callable[[], bool], timeout: float = 2.0,
 
 
 class SuitHarness:
-    def __init__(self, *, with_cloud: bool = False, spi_rate_hz: float = 200.0) -> None:
+    def __init__(self, *, with_cloud: bool = False, spi_rate_hz: float = 200.0,
+                 with_bridge: bool = True, hub_port: int = 0) -> None:
         self.with_cloud = with_cloud
+        self.with_bridge = with_bridge
         self._spi_rate = spi_rate_hz
 
         self.bus1 = VirtualBus("bus1")
         self.bus2 = VirtualBus("bus2")
-        self.hub = FakeHub(self.bus1, self.bus2)
+        self.hub = FakeHub(self.bus1, self.bus2, port=hub_port)
         self.limbs: dict[int, FakeLimb] = {}
         self.helmet = FakeHelmet(self.bus1)
         self.flight = FakeFlight(self.bus2)
@@ -78,10 +80,11 @@ class SuitHarness:
         await self.helmet.start()
         await self.flight.start()
 
-        self.bridge = BridgeLite("127.0.0.1", self.hub.port, spi_rate_hz=self._spi_rate)
-        await self.bridge.start()
+        if self.with_bridge:
+            self.bridge = BridgeLite("127.0.0.1", self.hub.port, spi_rate_hz=self._spi_rate)
+            await self.bridge.start()
 
-        if self.with_cloud:
+        if self.with_cloud and self.bridge is not None:
             self.bridge.cloud = CloudLink(
                 f"ws://127.0.0.1:{self.cloud_port}", CLOUD_TOKEN, self.bridge
             )

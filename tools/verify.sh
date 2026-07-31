@@ -8,8 +8,9 @@
 #   bash tools/verify.sh py c       # only the named tiers
 #   bash tools/verify.sh --failures # re-print the error lines from the last run
 #
-# Tiers: py (native pytest), c (host C suites), fw (4 firmware builds),
-#        ros (colcon build+test), cloud (3.12 container parity).
+# Tiers: py (native pytest), lint (cppcheck), c (host C suites),
+#        fw (4 firmware builds), ros (colcon build+test),
+#        cloud (3.12 container parity).
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -71,6 +72,14 @@ if want py; then
         [ $rc -eq 5 ] && continue
         record "$name" $rc "$(tail -1 "$log")"
     done
+fi
+
+# ---- static analysis ---------------------------------------------------------
+if want lint; then
+    echo "static analysis:"
+    log="$LOGS/cppcheck.log"
+    bash tools/cppcheck.sh --strict >"$log" 2>&1
+    record "cppcheck (C)" $? "$(tail -1 "$log")"
 fi
 
 # ---- pure C host suites ------------------------------------------------------

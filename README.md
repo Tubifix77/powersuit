@@ -7,7 +7,8 @@ and a GPU cloud service reachable over 5G.
 The system specification is [`ARCHITECTURE.md`](ARCHITECTURE.md). The *normative engineering
 contract* — the one every node actually codes against — is [`docs/network-map.md`](docs/network-map.md),
 with safety semantics in [`docs/safety.md`](docs/safety.md) and the cloud link in
-[`docs/link-protocol.md`](docs/link-protocol.md). Where reality forced a departure from the
+[`docs/link-protocol.md`](docs/link-protocol.md). When hardware arrives,
+[`docs/bringup.md`](docs/bringup.md) is the order to prove it in. Where reality forced a departure from the
 original specification, it is recorded in [network-map §12](docs/network-map.md#12-deviations-from-architecturemd)
 rather than quietly implemented.
 
@@ -141,8 +142,16 @@ with session resume, and the local-beats-cloud ordering guarantee.
 pytest tools/suit_sim/tests -q
 ```
 
-For the ROS 2 side against the same simulated hub, `suit_bringup`'s `sim.launch.py` starts
-the real bridge with its mock transport pointed at the simulator.
+The same simulation can be driven by the *real* Node 8 stack instead of the Python
+stand-in — real ROS graph, real C++ bridge, real framing, simulated hardware:
+
+```bash
+python -m suit_sim.serve --port 9700 --cloud
+```
+
+```bash
+ros2 launch suit_bringup sim.launch.py mock_port:=9700
+```
 
 ## Deploying
 

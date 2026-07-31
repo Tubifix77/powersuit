@@ -15,8 +15,13 @@ EXIT_CODE=0
 
 if ! command -v cppcheck >/dev/null 2>&1; then
     echo "cppcheck not installed; running it in a container instead"
-    exec docker run --rm -v "$PWD:/repo" -w /repo ros:jazzy bash -c \
-        "apt-get update -qq >/dev/null && apt-get install -y -qq cppcheck >/dev/null && bash tools/cppcheck.sh $*"
+    # Git Bash reports /d/... which Docker cannot mount; rewrite to d:/... and
+    # stop MSYS from mangling the container-side path.
+    host_path="$(echo "$PWD" | sed -e 's|^/\([a-z]\)/|\1:/|')"
+    exec env MSYS_NO_PATHCONV=1 docker run --rm -v "$host_path:/repo" -w /repo ros:jazzy \
+        bash -c "apt-get update -qq >/dev/null 2>&1 && \
+                 apt-get install -y -qq cppcheck >/dev/null 2>&1 && \
+                 bash tools/cppcheck.sh $*"
 fi
 
 cppcheck \

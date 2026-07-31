@@ -36,12 +36,14 @@ def _bus_port_of(node: int) -> int | None:
 
 
 class FakeHub:
-    def __init__(self, bus1: VirtualBus, bus2: VirtualBus, *, host: str = "127.0.0.1") -> None:
+    def __init__(self, bus1: VirtualBus, bus2: VirtualBus, *, host: str = "127.0.0.1",
+                 port: int = 0) -> None:
         self.node_id = Node.HUB
         self.bus1 = bus1
         self.bus2 = bus2
         self.host = host
-        self.port = 0
+        # 0 = ephemeral (tests); a fixed port lets the real C++ bridge attach.
+        self.port = port
 
         self.soc_pct = 84
         self.estop_latched = False
@@ -70,7 +72,7 @@ class FakeHub:
         bus2.attach(self.node_id, lambda f: self._on_bus(f, spi_frame.BUS_CAN2))
 
     async def start(self) -> None:
-        self._server = await asyncio.start_server(self._serve, self.host, 0)
+        self._server = await asyncio.start_server(self._serve, self.host, self.port)
         self.port = self._server.sockets[0].getsockname()[1]
         self._tasks = [asyncio.ensure_future(self._bms_loop())]
 
