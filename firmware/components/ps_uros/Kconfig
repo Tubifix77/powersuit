@@ -1,0 +1,21 @@
+menu "ps_uros (micro-ROS over the XRCE CAN plane)"
+
+    config PS_UROS_TASK_STACK
+        int "micro-ROS session task stack (bytes)"
+        default 16384
+        help
+            rclc session setup plus the executor needs a generous stack; 16 KB is
+            the value micro-ROS examples use for comparable entity counts.
+
+    config PS_UROS_RX_RING
+        int "Inbound XRCE stream buffer (bytes)"
+        default 2048
+        help
+            Holds HDLC-framed agent traffic between the CAN receive callback and
+            the transport read. Must exceed the XRCE MTU (512) with headroom.
+
+    config PS_UROS_PING_PERIOD_MS
+        int "Agent liveness ping period (ms)"
+        default 2000
+
+endmenu

@@ -1,0 +1,21 @@
+menu "ps_can (TWAI transport)"
+
+    config PS_CAN_TX_GPIO
+        int "Default CAN TX GPIO"
+        default 4
+        help
+            Bench default for the single-controller nodes (1-6). The chest hub
+            passes both controllers' pins explicitly from board_hub.h instead.
+
+    config PS_CAN_RX_GPIO
+        int "Default CAN RX GPIO"
+        default 5
+
+    config PS_CAN_BITRATE
+        int "CAN bitrate (bit/s)"
+        default 1000000
+        help
+            Contract value is 1 Mbps on both buses (docs/network-map.md §2).
+            The bus load budget in §10 assumes it.
+
+endmenu
