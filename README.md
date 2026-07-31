@@ -78,7 +78,8 @@ ROS 2 build in containers, so Docker is the only hard prerequisite for those.
 ```bash
 python -m venv .venv && source .venv/Scripts/activate
 pip install -e ./common/python -e "./cloud[dev]" -e ./tools/suit_sim
-pytest common/python/tests cloud/tests tools/suit_sim/tests -q
+# one suite at a time: each ships its own conftest.py
+pytest common/python/tests -q && pytest cloud/tests -q && pytest tools/suit_sim/tests -q
 ```
 
 Regenerating the cross-language vectors after a protocol change (this rewrites both the

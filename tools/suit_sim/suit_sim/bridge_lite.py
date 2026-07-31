@@ -270,6 +270,17 @@ class CloudLink:
         self._task: asyncio.Task[None] | None = None
 
     async def connect(self, *, resume: bool = False) -> None:
+        # Reconnect must be safe to call over a dead session: tear the old
+        # reader down first or two rx loops race over one CloudLink.
+        if self._task is not None:
+            self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+            self._task = None
+        if self._ws is not None:
+            with contextlib.suppress(Exception):
+                await self._ws.close()
+
         self._ws = await websockets.connect(self.url)
         payload: dict[str, Any] = {
             "proto": link.PROTO_VERSION,

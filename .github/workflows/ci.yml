@@ -22,7 +22,11 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install -e "./common/python[dev]" -e "./cloud[dev]" -e ./tools/suit_sim
-      - run: python -m pytest common/python/tests cloud/tests tools/suit_sim/tests -q
+      # Separate invocations on purpose: each suite ships its own conftest.py,
+      # and pytest's rootdir-prepend import mode would let one shadow the other.
+      - run: python -m pytest common/python/tests -q
+      - run: python -m pytest cloud/tests -q
+      - run: python -m pytest tools/suit_sim/tests -q
 
   vectors-fresh:
     name: cross-language vectors are regenerated

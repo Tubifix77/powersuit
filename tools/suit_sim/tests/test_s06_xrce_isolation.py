@@ -21,7 +21,7 @@ async def test_interleaved_streams_reassemble_per_source():
         # Distinct, self-identifying payloads so any cross-talk is obvious.
         payloads = {
             Node.ARM_R: bytes(range(0, 60)),
-            Node.LEG_L: bytes(range(200, 260)),
+            Node.LEG_L: bytes(range(190, 250)),
         }
 
         # Interleave at 8-byte granularity — the worst case for a demux that

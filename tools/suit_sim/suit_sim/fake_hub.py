@@ -263,9 +263,15 @@ class FakeHub:
         self._tx_seq = (self._tx_seq + 1) & 0xFF
 
         if self.corrupt_frames > 0:
-            # Flip a payload bit; the CRC must catch it.
+            # Flip a bit the CRC actually covers. With no records in the frame,
+            # everything past the header is uncovered padding, so target the
+            # header instead — otherwise an empty frame would sail through and
+            # the test would be measuring nothing.
             self.corrupt_frames -= 1
-            frame[20] ^= 0x40
+            if batch:
+                frame[spi_frame.SPI_HDR_SIZE + 12] ^= 0x40
+            else:
+                frame[5] ^= 0x40   # seq: always inside the CRC
         return bytes(frame)
 
     def corrupt_next_frames(self, n: int) -> None:

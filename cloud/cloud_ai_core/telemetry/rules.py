@@ -28,8 +28,20 @@ _FAULT_BIT_NAMES: tuple[tuple[int, str], ...] = (
 )
 
 
+"""BMSF_COMP_ARMED is a health bit, not a fault: it reports that the hardware
+short-circuit comparator is armed, which is the state the pack should always be
+in (docs/safety.md §4). Treating it as a fault would cry wolf on every healthy
+suit — and, worse, would say nothing when the comparator is actually disarmed
+and the pack has lost its sub-microsecond protection."""
+_ACTUAL_FAULT_MASK = sum(bit for bit, _ in _FAULT_BIT_NAMES) & ~wire.BMSF_COMP_ARMED
+
+
 def decode_fault_bits(bits: int) -> list[str]:
     return [name for bit, name in _FAULT_BIT_NAMES if bits & bit]
+
+
+def decode_actual_faults(bits: int) -> list[str]:
+    return decode_fault_bits(bits & _ACTUAL_FAULT_MASK)
 
 
 @dataclass
@@ -103,11 +115,25 @@ class RulesEngine:
                 name="bms_fault",
                 severity="warning",
                 title="BMS fault bits set",
-                trigger=lambda s: s.fault_bits != 0,
-                reset=lambda s: s.fault_bits == 0,
+                trigger=lambda s: (s.fault_bits & _ACTUAL_FAULT_MASK) != 0,
+                reset=lambda s: (s.fault_bits & _ACTUAL_FAULT_MASK) == 0,
                 body=lambda s: "BMS reports fault bits: "
-                               + ", ".join(decode_fault_bits(s.fault_bits))
+                               + ", ".join(decode_actual_faults(s.fault_bits))
                                + ". See battery care section of the manual.",
+            ),
+            _Rule(
+                name="comparator_disarmed",
+                severity="critical",
+                title="Short-circuit protection disarmed",
+                # Only meaningful once the pack has actually reported: an empty
+                # state must not be mistaken for a disarmed comparator.
+                trigger=lambda s: s.soc is not None
+                and not (s.fault_bits & wire.BMSF_COMP_ARMED),
+                reset=lambda s: bool(s.fault_bits & wire.BMSF_COMP_ARMED),
+                body=lambda s: "The battery short-circuit comparator reports disarmed. "
+                               "The pack has lost its hardware protection; firmware "
+                               "cannot substitute for it. Land and power down.",
+                hud={"icon": "battery", "ttl_s": 30},
             ),
         ]
 

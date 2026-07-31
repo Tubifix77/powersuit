@@ -9,10 +9,15 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from powersuit_proto import wire
 
 
 def _batch(soc: float, **extra_power) -> dict:
-    power = {"pack_v": 42.0, "current_a": 5.0, "soc": soc, "t_max": 30, "faults": 0}
+    # faults carries BMSF_COMP_ARMED because a healthy pack has its hardware
+    # short-circuit comparator armed (docs/safety.md §4); faults == 0 would mean
+    # the pack has lost that protection, which is its own critical advisory.
+    power = {"pack_v": 42.0, "current_a": 5.0, "soc": soc, "t_max": 30,
+             "faults": wire.BMSF_COMP_ARMED}
     power.update(extra_power)
     return {
         "window_ms": 200,

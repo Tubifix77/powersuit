@@ -8,6 +8,8 @@ default thresholds in config.RuleThresholds.
 
 from __future__ import annotations
 
+from powersuit_proto import wire
+
 from cloud_ai_core.config import RuleThresholds
 from cloud_ai_core.telemetry.rules import RulesEngine, decode_fault_bits
 from cloud_ai_core.telemetry.state import RollingState
@@ -17,7 +19,14 @@ def _state(**power_safety: dict) -> RollingState:
     rs = RollingState()
     payload = {"sources": {}, "window_ms": 200}
     if "power" in power_safety:
-        payload["sources"]["power"] = power_safety["power"]
+        # A healthy pack reports its short-circuit comparator ARMED (that bit is
+        # carried in fault_bits but describes health, not a fault — see
+        # docs/safety.md §4). Default it on so these fixtures model a working
+        # pack; tests that want a disarmed one clear it explicitly.
+        p = dict(power_safety["power"])
+        if p.pop("comparator_armed", True):
+            p["faults"] = p.get("faults", 0) | wire.BMSF_COMP_ARMED
+        payload["sources"]["power"] = p
     if "safety" in power_safety:
         payload["sources"]["safety"] = power_safety["safety"]
     if "dropped_count" in power_safety:
@@ -162,3 +171,34 @@ class TestMultipleRulesIndependent:
         engine = RulesEngine(RuleThresholds(soc_notice=20, soc_warning=10, temp_critical=60.0))
         out = engine.evaluate(_state(power={"soc": 5, "t_max": 65}, safety={"estop": True}))
         assert set(_titles(out)) == {"Battery low", "Battery critically low", "Pack overtemperature", "E-stop latched"}
+
+
+class TestComparatorDisarmed:
+    """The hardware comparator is what actually meets the sub-microsecond
+    short-circuit requirement; firmware only observes it (docs/safety.md §4).
+    A pack reporting it disarmed has silently lost that protection, which is
+    exactly the condition a fault-bits-nonzero check would never notice."""
+
+    def test_disarmed_comparator_is_critical(self) -> None:
+        engine = RulesEngine(RuleThresholds())
+        out = engine.evaluate(_state(power={"soc": 90, "comparator_armed": False}))
+        titles = {a["title"] for a in out}
+        assert "Short-circuit protection disarmed" in titles
+        adv = next(a for a in out if a["title"] == "Short-circuit protection disarmed")
+        assert adv["severity"] == "critical"
+
+    def test_armed_comparator_is_silent(self) -> None:
+        engine = RulesEngine(RuleThresholds())
+        out = engine.evaluate(_state(power={"soc": 90}))
+        assert out == []
+
+    def test_armed_bit_is_not_reported_as_a_fault(self) -> None:
+        engine = RulesEngine(RuleThresholds())
+        out = engine.evaluate(_state(power={"soc": 90, "faults": wire.BMSF_OV}))
+        bodies = " ".join(a["body"] for a in out)
+        assert "ov" in bodies
+        assert "comparator_armed" not in bodies
+
+    def test_empty_state_does_not_claim_a_disarmed_pack(self) -> None:
+        engine = RulesEngine(RuleThresholds())
+        assert engine.evaluate(RollingState()) == []
