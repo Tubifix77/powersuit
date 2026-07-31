@@ -343,6 +343,11 @@ class CloudLink:
                 else:
                     self._on_text(message)
         except (asyncio.CancelledError, websockets.exceptions.ConnectionClosed):
+            pass
+        finally:
+            # A closed socket ends the async iterator *normally*, so clearing
+            # the flag only in the exception path would leave the client
+            # believing it was still online after the far end went away.
             self.connected = False
 
     def _on_text(self, raw: str) -> None:
