@@ -37,7 +37,8 @@ public:
 
 private:
   void on_downlink(const suit_msgs::msg::AudioChunk::SharedPtr msg);
-  void enqueue_frame_down(const uint8_t* adpcm8);
+  void process_adpcm_down(const uint8_t* bytes, size_t n);
+  void enqueue_frame_down(const uint8_t* adpcm, size_t len);
   void maybe_enqueue_sync();
 
   rclcpp::Node* node_;

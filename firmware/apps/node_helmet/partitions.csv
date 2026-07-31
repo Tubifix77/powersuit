@@ -1,0 +1,11 @@
+# node_helmet custom partition table (8 MB flash).
+# Name,      Type, SubType, Offset,   Size,   Flags
+nvs,         data, nvs,     0x9000,   0x6000,
+phy_init,    data, phy,     0xF000,   0x1000,
+factory,     app,  factory, 0x10000,  3M,
+# Reserved for a future esp-sr wake-word model (Kconfig.projbuild PS_WAKE_ESP_SR).
+# Empty today: the default wake path is the pure-C energy gate (ps_egate),
+# which needs no model data. Sized for a typical WakeNet9/ESP-SR small model
+# (a few hundred KB) with headroom; mounted as a SPIFFS/model partition only
+# when CONFIG_PS_WAKE_ESP_SR is selected and esp-sr is vendored.
+model,       data, spiffs,  ,         1M,

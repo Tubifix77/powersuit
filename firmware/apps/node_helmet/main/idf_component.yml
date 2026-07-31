@@ -1,0 +1,10 @@
+dependencies:
+  idf: ">=5.5"
+  # ST7789 HUD panel: LVGL 9 graphics + Espressif's IDF/LVGL glue layer.
+  lvgl/lvgl: "~9.5.0"
+  espressif/esp_lvgl_port: "~2.8.0"
+  # espressif/esp-sr is deliberately NOT a default dependency: the default
+  # wake path is the pure-C VOX energy gate (ps_egate, docs/safety.md §6),
+  # which needs no model or extra flash/PSRAM budget. esp-sr is only pulled
+  # in when CONFIG_PS_WAKE_ESP_SR is selected (Kconfig.projbuild); add it here
+  # under a manifest condition (or a second manifest) at that point, not now.

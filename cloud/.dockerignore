@@ -1,0 +1,22 @@
+# Paths are relative to the build context (repo root; see Dockerfile).
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+**/*.egg-info/
+**/.venv/
+.git/
+.github/
+
+# Keep the image build reproducible from source only — never copy in a stale
+# venv or local editable-install artifacts.
+firmware/
+orchestrator/
+tools/
+proto/
+
+# These live outside cloud/, but Docker still evaluates .dockerignore
+# relative to the build context root, so exclude their build junk too.
+common/c/
+common/python/**/__pycache__/
+common/python/**/*.egg-info/

@@ -1,0 +1,32 @@
+menu "Powersuit node_helmet Configuration"
+
+    choice PS_WAKE_ENGINE
+        prompt "Wake-word / VOX engine"
+        default PS_WAKE_ENERGY_GATE
+        help
+            Selects what decides when the mic uplink starts streaming
+            (docs/safety.md §6). The energy-gate path is the default and must
+            build without esp-sr present (it is not a default dependency,
+            see main/idf_component.yml); esp-sr is an explicit opt-in for
+            boards that have vendored it and populated the "model" partition
+            (partitions.csv).
+
+        config PS_WAKE_ENERGY_GATE
+            bool "Energy gate (ps_egate, pure C, no model)"
+            help
+                RMS-over-window VOX gate from ps_audio: opens the uplink on
+                any sound above threshold. No wake word, no model, always
+                available.
+
+        config PS_WAKE_ESP_SR
+            bool "esp-sr wake word (WakeNet)"
+            help
+                Gates the uplink on a specific wake word instead of any
+                sound above threshold. Requires espressif/esp-sr to be added
+                to main/idf_component.yml and a model flashed into the
+                "model" partition; audio_in_task.c's esp-sr calls are guarded
+                by CONFIG_PS_WAKE_ESP_SR so selecting this without vendoring
+                esp-sr fails the build loudly rather than silently.
+    endchoice
+
+endmenu

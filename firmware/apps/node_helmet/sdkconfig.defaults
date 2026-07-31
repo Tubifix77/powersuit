@@ -1,0 +1,23 @@
+# node_helmet per-app defaults (appended after ../../sdkconfig.defaults.common).
+CONFIG_IDF_TARGET="esp32s3"
+
+# Custom table: factory app + nvs/phy_init + a reserved 1 MB "model" partition
+# for a future esp-sr wake-word model (see partitions.csv, Kconfig.projbuild
+# PS_WAKE_ESP_SR). The single-app-large layout the other apps use has no room
+# for that reservation.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="8MB"
+
+# PSRAM: enabled for the LVGL frame buffer(s) (up to 2 x 240*240*2 B = 225 KB
+# at 16bpp) and headroom for micro-ROS + audio + HUD tasks resident together;
+# internal SRAM alone is tight once all of that is live. Quad mode is the
+# simplest, most widely-available bring-up assumption for an ESP32-S3 module
+# with 8 MB flash; switch to CONFIG_SPIRAM_MODE_OCT if the fielded module uses
+# octal PSRAM. If the bring-up board has no PSRAM populated at all, set
+# CONFIG_SPIRAM=n here -- hud_task.c's LVGL buffers then come out of internal
+# SRAM only (smaller, single buffer; see its allocation comment).
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_QUAD=y
+CONFIG_SPIRAM_SPEED_40M=y

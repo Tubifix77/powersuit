@@ -1,0 +1,62 @@
+# Bench compose for Node 9 (cloud_ai_core). Run from the repo root:
+#   docker compose -f cloud/docker-compose.yml up --build
+#
+# By default only the `app` service runs, with the mock engine and mock TTS —
+# no GPU, no extra containers, nothing external required. The `ollama` and
+# `gpu` profiles below are opt-in alternates for a real LLM backend; the test
+# suite (cloud/tests, run in the Dockerfile's `test` stage) never needs either.
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: cloud/Dockerfile
+    ports:
+      - "8765:8765"
+    environment:
+      CLOUD_BIND: "0.0.0.0:8765"
+      CLOUD_LINK_TOKENS: "dev-token"
+      ENGINE: "mock"
+      TTS: "mock"
+
+  # --- profile: ollama -------------------------------------------------------
+  # Bench-grade real LLM backend. Bring it up alongside app with:
+  #   docker compose -f cloud/docker-compose.yml --profile ollama up --build
+  # then pull a small model once the container is running:
+  #   docker exec ollama ollama pull llama3.2:1b
+  # and point `app` at it by overriding its environment (either edit the block
+  # above or pass -e on the CLI) to:
+  #   ENGINE=openai
+  #   OPENAI_BASE_URL=http://ollama:11434/v1
+  #   OPENAI_MODEL=llama3.2:1b
+  ollama:
+    image: ollama/ollama
+    profiles: ["ollama"]
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "11434:11434"
+
+  # --- profile: gpu -----------------------------------------------------------
+  # Production-grade inference on an actual GPU box:
+  #   docker compose -f cloud/docker-compose.yml --profile gpu up --build
+  # then point `app` at it the same way as ollama above:
+  #   ENGINE=openai
+  #   OPENAI_BASE_URL=http://vllm:8000/v1
+  #   OPENAI_MODEL=<model repo id served below>
+  vllm:
+    image: vllm/vllm-openai:latest
+    profiles: ["gpu"]
+    command: ["--model", "meta-llama/Llama-3.2-3B-Instruct"]
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: ["gpu"]
+
+volumes:
+  ollama-data:
