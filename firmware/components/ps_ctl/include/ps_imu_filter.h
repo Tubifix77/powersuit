@@ -3,6 +3,8 @@
  * sensor frame to the world frame (gravity-aligned), Q15-packable via wire.ImuQuat. */
 #pragma once
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

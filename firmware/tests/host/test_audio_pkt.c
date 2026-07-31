@@ -1,4 +1,5 @@
 #include "ps_audio.h"
+#include "powersuit_proto/can_id.h"
 #include "ps_test.h"
 
 /* Deterministic pcm exercise: 300 frames = 4800 samples crosses the 256-wide

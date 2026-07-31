@@ -8,6 +8,8 @@
  * silence, unlocks, and waits for the next SYNC (§3.5 resync rule). */
 #include "ps_audio.h"
 
+#include "powersuit_proto/can_id.h"
+
 #include <string.h>
 
 /* ---------------------------------------------------------------- TX ------ */

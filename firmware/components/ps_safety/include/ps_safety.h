@@ -53,7 +53,12 @@ uint8_t ps_safety_core_tick(ps_safety_core_t *c, uint32_t now_ms);
 
 bool ps_safety_core_cmd_fresh(const ps_safety_core_t *c, uint32_t now_ms); /* < PS_CMD_STALE_MS */
 
-/* ---------------- ESP glue ---------------- */
+/* ---------------- ESP glue (ESP-IDF builds only) ----------------
+ * Guarded: the pure core above must compile on the host, where esp_err_t and
+ * the ps_can handle type do not exist. */
+#ifdef ESP_PLATFORM
+
+#include "esp_err.h"
 
 struct ps_can_ctx;
 
@@ -76,6 +81,8 @@ esp_err_t ps_safety_raise_estop(uint8_t cause);
 esp_err_t ps_safety_send_fault(uint8_t fault_code, uint8_t severity, uint16_t detail);
 /* Feed a valid received actuation command (JOINT_CMD/FLAP_CMD) into freshness tracking. */
 void ps_safety_note_cmd(void);
+
+#endif /* ESP_PLATFORM */
 
 #ifdef __cplusplus
 }
