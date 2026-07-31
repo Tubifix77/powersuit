@@ -190,10 +190,14 @@ void limb_uros_create_entities(void *support, void *node, void *executor, void *
     rclc_executor_t *exec = (rclc_executor_t *)executor;
     const char *alive_topic = (const char *)arg;
 
-    rclc_parameter_options_t popts = rclc_parameter_get_default_options();
-    popts.notify_changed_over_dds = true;
-    popts.max_params = UROS_MAX_PARAMS;
-    popts.allow_undeclared_parameters = false;
+    /* rclc_parameter_options_t is a plain aggregate; there is no
+     * get_default_options() helper in this rclc version. */
+    const rclc_parameter_options_t popts = {
+        .notify_changed_over_dds = true,
+        .max_params = UROS_MAX_PARAMS,
+        .allow_undeclared_parameters = false,
+        .low_mem_mode = false,
+    };
     rclc_parameter_server_init_with_option(&s_param_server, nd, &popts);
     rclc_executor_add_parameter_server(exec, &s_param_server, uros_on_param_changed);
 

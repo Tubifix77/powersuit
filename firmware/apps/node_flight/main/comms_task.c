@@ -227,16 +227,22 @@ static rcl_timer_t s_alive_timer;
 static std_msgs__msg__Bool s_alive_msg;
 static rcl_node_t *s_uros_node;
 
-static void on_param_changed(const Parameter *old_param, const Parameter *new_param, void *context)
+/* Returning false REJECTS the change (rclc_parameter_callback_t). That is the
+ * mechanism by which the network cannot widen a limit the board defines, so
+ * this must propagate flight_param_set's verdict rather than swallow it. */
+static bool on_param_changed(const Parameter *old_param, const Parameter *new_param,
+                             void *context)
 {
     (void)old_param;
     (void)context;
     if (new_param == NULL || new_param->value.type != RCLC_PARAMETER_DOUBLE) {
-        return;
+        return false;
     }
     if (!flight_param_set(new_param->name.data, new_param->value.double_value)) {
         ESP_LOGW(TAG, "rejected parameter set: %s", new_param->name.data);
+        return false;
     }
+    return true;
 }
 
 static void alive_timer_cb(rcl_timer_t *timer, int64_t last_call_time)
@@ -255,7 +261,12 @@ void flight_uros_create_entities(void *support, void *node, void *executor, void
     rclc_executor_t *exec = (rclc_executor_t *)executor;
     s_uros_node = nd;
 
-    rclc_parameter_options_t popts = rclc_parameter_get_default_options();
+    const rclc_parameter_options_t popts = {
+        .notify_changed_over_dds = true,
+        .max_params = 2,          /* rho, rate_scale */
+        .allow_undeclared_parameters = false,
+        .low_mem_mode = false,
+    };
     rclc_parameter_server_init_with_option(&s_param_server, nd, &popts);
     rclc_executor_add_parameter_server(exec, &s_param_server, on_param_changed);
     rclc_add_parameter(&s_param_server, "rho", RCLC_PARAMETER_DOUBLE);
@@ -274,7 +285,7 @@ void flight_uros_destroy_entities(void *arg)
     (void)arg;
     (void)rcl_timer_fini(&s_alive_timer);
     (void)rcl_publisher_fini(&s_alive_pub, s_uros_node);
-    (void)rclc_parameter_server_fini(&s_param_server);
+    (void)rclc_parameter_server_fini(&s_param_server, s_uros_node);
 }
 
 #else /* !PS_UROS_ENABLED */

@@ -30,6 +30,13 @@ static const char *TAG = "ps_uros";
 #define CONFIG_PS_UROS_PING_PERIOD_MS 2000
 #endif
 
+/* Executor slots. Only subscriptions, timers, services, clients and guard
+ * conditions consume one — publishers do not. An rclc parameter server alone
+ * takes RCLC_EXECUTOR_PARAMETER_SERVER_HANDLES (6), so the limb node's server
+ * plus its timer already sits at 7. Overflowing this fails when entities are
+ * added at runtime, not at build time, so leave generous headroom. */
+#define PS_UROS_EXECUTOR_HANDLES 16
+
 typedef enum {
     LINK_WAITING_AGENT,
     LINK_CONNECTED,
@@ -69,7 +76,9 @@ static void session_task(void *arg)
                     rclc_node_init_default(&node, s_cfg.node_name,
                                            s_cfg.ros_namespace ? s_cfg.ros_namespace : "",
                                            &support) == RCL_RET_OK &&
-                    rclc_executor_init(&executor, &support.context, 8, &allocator) == RCL_RET_OK) {
+                    rclc_executor_init(&executor, &support.context,
+                                       PS_UROS_EXECUTOR_HANDLES,
+                                       &allocator) == RCL_RET_OK) {
                     s_cfg.create_entities(&support, &node, &executor, s_cfg.arg);
                     set_connected(true);
                     since_ping_ms = 0;
