@@ -9,7 +9,10 @@
 #
 # SKIP_DEPS=1 builds only the project workspace against whatever is already in
 # DEPS — useful when iterating, since the agent superbuild is slow.
-set -euo pipefail
+# NOTE: no `set -u`. ROS's setup.bash dereferences unbound variables
+# (AMENT_TRACE_SETUP_FILES and friends), so sourcing it under `set -u` aborts
+# the script before anything is built.
+set -eo pipefail
 
 REPO="${REPO:-/repo}"
 DEPS="${DEPS:-/deps}"
@@ -26,8 +29,12 @@ apt-get update -qq
 apt-get install -y -qq --no-install-recommends \
     python3-pip python3-vcstool libgpiod-dev >/dev/null
 
-# powersuit_proto is a plain pip package shared with the firmware and cloud tiers.
-pip3 install --break-system-packages --quiet -e "$REPO/common/python" websockets pytest
+# powersuit_proto is shared with the firmware and cloud tiers. Copy it out of
+# the (possibly read-only) repo mount first: an editable install needs to write
+# egg-info back into the source tree, which fails under :ro.
+rm -rf "$DEPS/pyproto"
+cp -r "$REPO/common/python" "$DEPS/pyproto"
+pip3 install --break-system-packages --quiet "$DEPS/pyproto" websockets pytest
 
 source /opt/ros/jazzy/setup.bash
 rosdep update --rosdistro jazzy >/dev/null 2>&1 || true
