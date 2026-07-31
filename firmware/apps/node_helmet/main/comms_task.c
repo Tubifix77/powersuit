@@ -10,6 +10,7 @@
 #include "board_helmet.h"
 
 #include "driver/temperature_sensor.h"
+#include "esp_check.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"

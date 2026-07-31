@@ -8,6 +8,7 @@
 #include "board_helmet.h"
 
 #include "driver/i2s_std.h"
+#include "esp_check.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
