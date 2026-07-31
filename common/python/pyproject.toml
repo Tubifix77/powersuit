@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "powersuit-proto"
+version = "0.1.0"
+description = "Powersuit protocol contract: CAN ID codec, wire structs, SPI framing, CRC16, IMA ADPCM, cloud link envelope"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+
+[tool.setuptools.packages.find]
+include = ["powersuit_proto*"]

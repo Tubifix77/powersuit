@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+dist/
+
+# colcon / ROS 2
+build/
+install/
+log/
+
+# ESP-IDF
+sdkconfig
+sdkconfig.old
+managed_components/
+dependencies.lock
+.component_hash
+
+# vendored on demand by firmware/tools/fetch_deps.sh
+/firmware/third_party/
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

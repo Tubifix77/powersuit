@@ -1,0 +1,160 @@
+// Suit <-> cloud link, protobuf mirror of docs/link-protocol.md (JSON-over-WS is the
+// primary transport; this schema exists for a future gRPC/HTTP2 path and MUST stay
+// message-for-message identical to the JSON envelope vocabulary).
+syntax = "proto3";
+
+package powersuit.link.v1;
+
+service SuitLink {
+  // Bidirectional stream mirroring the WebSocket session.
+  rpc Session(stream Uplink) returns (stream Downlink);
+}
+
+message Uplink {
+  uint64 seq = 1;
+  double ts = 2;
+  oneof msg {
+    Hello hello = 10;
+    TelemetryBatch telemetry_batch = 11;
+    VoiceQuery voice_query = 12;
+    AudioCredit audio_credit = 13;
+    LinkStats link_stats = 14;
+    AudioChunk audio_up = 15;
+    Bye bye = 16;
+  }
+}
+
+message Downlink {
+  uint64 seq = 1;
+  double ts = 2;
+  oneof msg {
+    HelloAck hello_ack = 10;
+    Advisory advisory = 11;
+    TtsMeta tts_meta = 12;
+    AudioChunk tts_chunk = 13;
+    Error error = 14;
+    Bye bye = 15;
+  }
+}
+
+message Hello {
+  uint32 proto = 1;
+  string suit_id = 2;
+  string token = 3;
+  string agent = 4;
+  Resume resume = 5;
+  message Resume {
+    string session_id = 1;
+    uint64 last_rx_seq = 2;
+  }
+}
+
+message HelloAck {
+  string session_id = 1;
+  uint64 resume_from = 2;
+  double ts_echo = 3;
+  uint32 audio_credits = 4;
+  uint32 heartbeat_s = 5;
+  repeated string capabilities = 6;
+}
+
+message TelemetryBatch {
+  uint32 window_ms = 1;
+  uint32 dropped_count = 2;
+  map<string, SourceState> sources = 3;
+
+  message SourceState {
+    repeated JointSample joints = 1;
+    bool imu_ok = 2;
+    repeated double quat = 3;  // w,x,y,z
+    repeated double acc = 4;   // m/s^2
+    PowerState power = 5;
+    AeroState aero = 6;
+    SafetyState safety = 7;
+    double temp_c = 8;
+  }
+  message JointSample {
+    uint32 j = 1;
+    double pos = 2;  // rad
+    double vel = 3;  // rad/s
+    double eff = 4;  // N*m
+  }
+  message PowerState {
+    double pack_v = 1;
+    double current_a = 2;
+    uint32 soc = 3;
+    double t_max = 4;
+    uint32 faults = 5;
+  }
+  message AeroState {
+    double ias = 1;  // m/s
+    double q = 2;    // Pa
+    repeated double flaps = 3;  // -1..1
+  }
+  message SafetyState {
+    string state = 1;
+    bool estop = 2;
+    bool hb_ok = 3;
+  }
+}
+
+message VoiceQuery {
+  string query_id = 1;
+  string text = 2;
+  string source = 3;
+  uint32 stream_id = 4;  // set when audio came up as AudioChunk stream
+  map<string, string> context = 5;
+}
+
+message Advisory {
+  string advisory_id = 1;
+  enum Severity { SEVERITY_UNSPECIFIED = 0; INFO = 1; NOTICE = 2; WARNING = 3; CRITICAL = 4; }
+  Severity severity = 2;
+  string title = 3;
+  string body = 4;
+  HudSuggestion hud = 5;
+  string in_reply_to = 6;
+  message HudSuggestion {
+    string icon = 1;
+    uint32 ttl_s = 2;
+  }
+}
+
+message TtsMeta {
+  uint32 stream_id = 1;
+  string query_id = 2;
+  enum State { STATE_UNSPECIFIED = 0; START = 1; END = 2; ABORT = 3; }
+  State state = 3;
+  string codec = 4;  // "adpcm8k"
+  string text = 5;
+}
+
+message AudioCredit {
+  uint32 stream_id = 1;
+  uint32 credits = 2;
+}
+
+message AudioChunk {
+  uint32 codec = 1;      // 1 = IMA ADPCM 8 kHz mono, 2 = PCM16LE 16 kHz mono
+  uint32 stream_id = 2;
+  uint32 seq = 3;
+  bytes payload = 4;     // <= 2048 bytes
+}
+
+message LinkStats {
+  string bearer = 1;   // "5g" | "wifi" | "sat"
+  double rtt_ms = 2;
+  double loss_pct = 3;
+  uint32 switches = 4;
+  uint32 rejected = 5;  // downlink messages dropped by whitelist
+}
+
+message Error {
+  string code = 1;   // unknown_type | bad_payload | auth | internal
+  string detail = 2;
+  uint64 ref_seq = 3;
+}
+
+message Bye {
+  string reason = 1;  // shutdown | failover | idle
+}

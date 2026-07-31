@@ -1,0 +1,9 @@
+# Shared defaults for every powersuit firmware app; per-app sdkconfig.defaults
+# (target, PSRAM, partition table) is appended via SDKCONFIG_DEFAULTS in the
+# project CMakeLists: set(SDKCONFIG_DEFAULTS "../../sdkconfig.defaults.common;sdkconfig.defaults")
+CONFIG_FREERTOS_HZ=1000
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=5
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_ESP_INT_WDT=y

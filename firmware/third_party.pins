@@ -1,0 +1,5 @@
+# Vendored-on-demand firmware dependencies (cloned by tools/fetch_deps.sh into
+# firmware/third_party/, which is gitignored). Format: name|git_url|ref
+# After the first verified build, the resolved SHAs are recorded in
+# third_party.lock (committed) and take precedence over the branch ref here.
+micro_ros_espidf_component|https://github.com/micro-ROS/micro_ros_espidf_component.git|jazzy

@@ -1,0 +1,11 @@
+# Powersuit firmware build image: ESP-IDF v5.5.5 + micro-ROS build deps.
+# Build:  docker build -t powersuit-idf:5.5.5 -f Dockerfile.idf .
+FROM espressif/idf:v5.5.5
+
+# micro_ros_espidf_component build-time deps (colcon runs inside the IDF venv);
+# empy is pinned <4 (micro-ROS generators break on empy 4.x).
+RUN . $IDF_PATH/export.sh >/dev/null 2>&1 && \
+    pip3 install --no-cache-dir catkin_pkg colcon-common-extensions lark "empy==3.3.4" && \
+    git config --global --add safe.directory '*'
+
+ENV IDF_CCACHE_ENABLE=1
