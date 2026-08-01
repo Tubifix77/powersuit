@@ -30,3 +30,6 @@ Thumbs.db
 
 # verification logs (tools/verify.sh)
 .verify-logs/
+
+# QEMU self-test build output (firmware/tools/qemu_test.sh)
+.qemu/

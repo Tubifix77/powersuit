@@ -9,8 +9,8 @@
 #   bash tools/verify.sh --failures # re-print the error lines from the last run
 #
 # Tiers: py (native pytest), lint (cppcheck), c (host C suites),
-#        fw (4 firmware builds), ros (colcon build+test),
-#        cloud (3.12 container parity).
+#        fw (4 firmware builds), qemu (on-target self-test),
+#        ros (colcon build+test), cloud (3.12 container parity).
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -105,6 +105,14 @@ if want fw; then
             "git config --global --add safe.directory '*'; idf.py -B /builds/$app build" >"$log" 2>&1
         record "idf build $app" $? "$(grep -E 'binary size' "$log" | tail -1)"
     done
+fi
+
+# ---- on-target self-test under emulation -------------------------------------
+if want qemu; then
+    echo "qemu (esp32s3):"
+    log="$LOGS/qemu.log"
+    bash firmware/tools/qemu_test.sh >"$log" 2>&1
+    record "qemu self-test" $? "$(grep -E 'QEMU_SELFTEST_SUMMARY' "$log" | tail -1)"
 fi
 
 # ---- ros 2 workspace ---------------------------------------------------------
