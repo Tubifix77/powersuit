@@ -129,6 +129,20 @@ bench bring-up. To enable it:
 bash firmware/tools/fetch_deps.sh
 ```
 
+### On-target self-test under emulation
+
+Espressif's QEMU fork emulates the ESP32-S3, so the logic can be run on Xtensa
+LX7 under real FreeRTOS — not a substitute for hardware, but it reaches things
+host tests cannot:
+
+```bash
+bash firmware/tools/qemu_test.sh
+```
+
+QEMU models the CPU, RAM, flash, UART and timers, but not TWAI, MCPWM, I2S, the
+SPI slave or the ADC — hence a dedicated self-test image rather than booting a
+node application.
+
 ### ROS 2 workspace
 
 ```bash
@@ -186,6 +200,7 @@ machine that applies force to a human body.
 | Pure C firmware logic | 11 suites under `-Wall -Wextra -Werror` — FOC maths, Mahony filter, safety state machine, CAN routing, ADPCM |
 | Firmware images | All four apps build for ESP32-S3/P4, with and without micro-ROS |
 | Whole-suit behaviour | 10 scenarios: watchdog trip and re-arm timing, e-stop propagation and replay rejection, SPI corruption recovery, voice round-trip, link failover, local-beats-cloud ordering |
+| On-target (QEMU) | 27 checks on emulated ESP32-S3: packed-struct access on Xtensa, single-precision FPU, dual-core scheduling, stack headroom, watchdog timing against real elapsed time |
 | Static analysis | `cppcheck` clean |
 
 **Not proven, and only provable on hardware**

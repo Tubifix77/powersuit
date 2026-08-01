@@ -114,6 +114,33 @@ jobs:
           cd firmware/apps/${{ matrix.app }}
           idf.py build
 
+  # The same logic on Xtensa LX7 under real FreeRTOS. Catches what x86-64 host
+  # tests structurally cannot: packed-struct access, the single-precision FPU,
+  # dual-core scheduling, real stack consumption, and watchdog timing against
+  # real elapsed time.
+  qemu-selftest:
+    name: on-target self-test (qemu esp32s3)
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.5
+    steps:
+      - uses: actions/checkout@v4
+      - name: install qemu-xtensa
+        run: |
+          . $IDF_PATH/export.sh
+          python $IDF_PATH/tools/idf_tools.py install qemu-xtensa
+      - name: build and run
+        env:
+          IDF_TARGET: esp32s3
+        run: |
+          . $IDF_PATH/export.sh
+          git config --global --add safe.directory '*'
+          cd firmware/apps/node_qemu_test
+          idf.py -B "$GITHUB_WORKSPACE/.qemu/build" build
+          cd "$GITHUB_WORKSPACE/.qemu/build"
+          python -m esptool --chip esp32s3 merge_bin --fill-flash-size 4MB -o "$GITHUB_WORKSPACE/.qemu/flash.bin" @flash_args
+          cd "$GITHUB_WORKSPACE"
+          bash firmware/tools/qemu_test.sh --run-only
+
   # libmicroros is the whole ROS 2 client stack built from source: ~25 minutes
   # cold, and byte-identical for every esp32s3 app. Build it once here, key the
   # cache on the vendored commit, and let the app jobs restore it. It only
