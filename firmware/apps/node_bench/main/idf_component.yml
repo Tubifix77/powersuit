@@ -1,0 +1,4 @@
+dependencies:
+  idf: ">=5.5"
+  # Onboard WS2812 on the DevKitC-1 (pin varies by board revision).
+  espressif/led_strip: "~3.0.3"

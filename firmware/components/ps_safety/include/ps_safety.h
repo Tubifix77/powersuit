@@ -82,6 +82,12 @@ esp_err_t ps_safety_send_fault(uint8_t fault_code, uint8_t severity, uint16_t de
 /* Feed a valid received actuation command (JOINT_CMD/FLAP_CMD) into freshness tracking. */
 void ps_safety_note_cmd(void);
 
+/* Feed a received CONTROL MODE_SET into the state machine. MODE_SET arrives on
+ * the CONTROL plane, which ps_safety does not subscribe to (it owns SAFETY
+ * only), so the app must forward it — and it must, because latching
+ * want_operational is the only route out of STANDBY (docs/safety.md §2). */
+void ps_safety_note_mode_set(uint8_t target_state);
+
 #endif /* ESP_PLATFORM */
 
 #ifdef __cplusplus

@@ -8,16 +8,10 @@
  * only entities it ever creates are the parameter server and a 1 Hz uptime
  * publisher (both explicitly low-rate).
  *
- * KNOWN GAP in the shared ps_safety component (reported, not worked around
- * here — see the app's build report): ps_safety.h's ESP glue exposes
- * ps_safety_note_cmd() for command freshness but no public hook to latch
- * ps_safety_core_t.want_operational from a received MODE_SET. The pure core
- * (ps_safety_core_on_mode_set) supports it and the hub's own mirror uses it
- * directly, but the limb app only has the singleton ps_safety_esp.c instance,
- * which never calls it. A limb node built against the current ps_safety
- * therefore cannot programmatically leave STANDBY/PASSIVE for OPERATIONAL;
- * MODE_SET is still applied to command freshness below, which is the one
- * part of the contract reachable through the exposed API. */
+ * MODE_SET arrives on the CONTROL plane, which ps_safety does not subscribe to
+ * (it owns SAFETY only), so this file forwards it via ps_safety_note_mode_set.
+ * That call is what latches want_operational — without it a limb can never
+ * leave STANDBY. */
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
@@ -122,10 +116,11 @@ static void handle_mode_set(const ps_can_frame_t *f)
     ps_mode_set_t ms;
     memset(&ms, 0, sizeof(ms));
     memcpy(&ms, f->data, f->dlc < sizeof(ms) ? f->dlc : sizeof(ms));
-    /* MODE_SET counts toward command freshness (network-map.md section 4
-     * re-arm list); latching want_operational itself is the documented gap
-     * noted at the top of this file. */
+    /* MODE_SET both counts toward command freshness (network-map.md section 4
+     * re-arm list) and latches the operational intent — without the latter the
+     * node can never leave STANDBY (docs/safety.md section 2). */
     ps_safety_note_cmd();
+    ps_safety_note_mode_set(ms.target_state);
     ctr_bump(&s_ctr.mode_set_rx);
     ESP_LOGD(TAG, "MODE_SET target=%u observed", (unsigned)ms.target_state);
 }

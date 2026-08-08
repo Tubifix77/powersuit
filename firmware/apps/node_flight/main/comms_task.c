@@ -149,6 +149,7 @@ static void control_rx(const ps_can_frame_t *frame, void *arg)
          * correct: docs/safety.md §2 lists MODE_SET among the "fresh valid
          * command" inputs the PASSIVE -> OPERATIONAL re-arm check requires. */
         ps_safety_note_cmd();
+    ps_safety_note_mode_set(ms.target_state);
         ESP_LOGW(TAG, "MODE_SET target=%u observed (freshness noted only; "
                       "ps_safety exposes no mode-set hook)", ms.target_state);
         break;

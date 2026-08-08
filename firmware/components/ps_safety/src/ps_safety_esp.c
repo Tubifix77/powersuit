@@ -185,6 +185,16 @@ void ps_safety_note_cmd(void)
     xSemaphoreGive(s.lock);
 }
 
+void ps_safety_note_mode_set(uint8_t target_state)
+{
+    if (!s.started) {
+        return;
+    }
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    ps_safety_core_on_mode_set(&s.core, now_ms(), target_state);
+    xSemaphoreGive(s.lock);
+}
+
 esp_err_t ps_safety_raise_estop(uint8_t cause)
 {
     if (!s.started) {

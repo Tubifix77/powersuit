@@ -126,3 +126,129 @@ and the 1 kHz control loop overrunning once the comms core is genuinely busy.
 Watch `NODE_STATS` (`cpu_pct`, `err_cnt`) and the ESP-IDF task watchdog. Raise
 `CONFIG_ESP_TASK_WDT_TIMEOUT_S` only after you understand why something is late,
 never to make a symptom go away.
+
+---
+
+# Appendix A — the two-board bench, without a soldering iron
+
+The steps above assume a real suit. This appendix is the cheap version: two
+DevKitC-1 boards, two CAN transceiver modules, jumper wires, and no soldering.
+It proves the one behaviour that matters most — the dead-man switch — on real
+silicon and real wire.
+
+Flash `firmware/apps/node_bench` to both boards, one as ORCHESTRATOR and one as
+LIMB (`idf.py menuconfig` → *Powersuit bench node*).
+
+## A.1 Shopping list
+
+| Item | Qty | Note |
+|------|-----|------|
+| ESP32-S3-DevKitC-1 | 2 | Buy **with headers pre-soldered**. N16R8 (16 MB flash / 8 MB Octal PSRAM) is what this config assumes. |
+| SN65HVD230 CAN transceiver breakout | 2 | Most of these carry their own 120 Ω termination, so a two-node bus made from two of them is already terminated at both ends. Check your listing — modules vary, and a few ship the resistor unpopulated or on a jumper. |
+| Breadboard + male-female dupont jumpers | 1 set | Push-fit only. |
+| USB cables | 2 | One per board, so you can watch both serial logs at once. |
+
+No separate resistors, no LEDs: the DevKitC-1 has an addressable RGB LED
+onboard, and `node_bench` uses it to show safety state.
+
+## A.2 Which pins are safe, and why
+
+The ESP32-S3 has fewer usable GPIOs than the pin count suggests. On an **N16R8**
+module these are all unavailable or inadvisable:
+
+| Pins | Why |
+|------|-----|
+| 0, 3, 45, 46 | Strapping pins — sampled at reset; driving them changes boot behaviour |
+| 19, 20 | USB D− / D+ |
+| 43, 44 | UART0 TX/RX — the serial console you will be reading |
+| 26–32 | SPI flash and PSRAM |
+| **35, 36, 37** | **Octal PSRAM only** — free on non-R8 parts, forbidden on R8 |
+| 38 *or* 47/48 | Onboard RGB LED, depending on board revision (see A.3) |
+
+That leaves `1, 2, 4–18, 21, 33, 34, 39–42` comfortably free, with 39–42 doubling
+as JTAG if you ever want hardware debugging.
+
+**`node_bench` defaults to GPIO4 for TWAI TX and GPIO5 for TWAI RX.** Both are in
+the unencumbered 4–18 band: not strapping, not bonded to flash or PSRAM on any
+module variant, not USB, not the console UART. They are also adjacent and
+low-numbered, which makes them easy to find on the silkscreen and hard to
+misjumper. Change them in menuconfig if your wiring prefers otherwise.
+
+## A.3 The RGB LED moved between board revisions
+
+Espressif put the onboard WS2812 on **GPIO48 on DevKitC-1 v1.0** and **GPIO38 on
+v1.1** — GPIO47/48 are fed from the 1.8 V VDD_SPI rail used by PSRAM, which is
+why it moved. Both revisions are still sold and listings rarely say which you
+are getting.
+
+This matters more than it sounds: a wrong guess is a dark LED, which looks
+exactly like a broken driver. So the pin is a menuconfig choice, never a
+literal, and the firmware announces it at boot:
+
+```
+I bench: RGB LED   : GPIO38 (DevKitC-1 v1.1)
+W bench: if the LED stays dark, you have the OTHER board revision — ...
+```
+
+If you would rather have the board tell you, enable **LED probe at boot**. It
+drives GPIO38 and GPIO48 in turn for two seconds each and announces which is
+active over serial; whichever lights your LED is your revision. Turn it off
+again afterwards.
+
+## A.4 Wiring
+
+Per board, four jumpers to its transceiver:
+
+```
+   ESP32-S3-DevKitC-1              SN65HVD230 module
+   ------------------              -----------------
+   3V3  ----------------------->   VCC     (3.3 V — NOT 5 V; the S3 is 3.3 V)
+   GND  ----------------------->   GND
+   GPIO4 (TWAI TX) ----------->    CTX  / TXD
+   GPIO5 (TWAI RX) <-----------    CRX  / RXD
+```
+
+Then the bus itself, between the two transceiver modules:
+
+```
+   transceiver A                   transceiver B
+   -------------                   -------------
+   CANH ------------------------>  CANH
+   CANL ------------------------>  CANL
+   GND  ------------------------>  GND     (tie the grounds together)
+```
+
+Three things that account for most first-time failures:
+
+- **TX and RX are not symmetric.** The board's TX goes to the module's TX input;
+  the module's RX output goes to the board's RX. They are not swapped across the
+  pair — swapping them is the most common wiring mistake and shows up as
+  `bus_errors` climbing with `rx_frames` stuck at zero.
+- **CANH goes to CANH.** Unlike a serial crossover, the differential pair is
+  straight-through.
+- **Common ground.** Two boards on separate USB ports usually share ground
+  through the PC, but tie the transceiver grounds anyway.
+
+## A.5 What you should see
+
+```bash
+idf.py -p COM3 flash monitor     # board A, configured as ORCHESTRATOR
+idf.py -p COM4 flash monitor     # board B, configured as LIMB
+```
+
+1. **Limb alone, orchestrator off.** LED amber (STANDBY). It will never arm — no
+   heartbeat, no authority. That is correct, and it is the first confirmation the
+   safety state machine works.
+2. **Orchestrator powered.** Within a few hundred milliseconds the limb's LED
+   turns white-blue and pulses: OPERATIONAL. The serial log prints the transition.
+3. **Pull the orchestrator's USB lead.** The limb's LED must go amber within
+   50 ms, and the log prints `>>> 2 -> 3 (cause 6)` — OPERATIONAL to PASSIVE,
+   cause COMM_LOSS. This is the dead-man switch. Do not proceed past this
+   appendix to anything with a motor in it until you have seen this work.
+4. **Plug it back in.** The limb returns to OPERATIONAL, but only after 250 ms of
+   uninterrupted heartbeats *and* a fresh command — recovery is deliberately
+   harder than staying up.
+
+If step 1 shows a dark LED rather than amber, read A.3 before suspecting the
+driver. If step 2 never happens, check `rx_frames` in the limb's 2-second status
+line: zero means wiring, non-zero means something else.

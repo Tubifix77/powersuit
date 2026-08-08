@@ -1,0 +1,74 @@
+menu "Powersuit bench node"
+
+    config PS_BENCH_IS_ORCH
+        bool "This board is the ORCHESTRATOR (heartbeat source)"
+        default n
+        help
+            Off  = LIMB: runs the real safety state machine, shows its state on
+                   the RGB LED, and trips to Passive Compliance when the beats
+                   stop.
+            On   = ORCHESTRATOR: emits the 100 Hz heartbeat and a 1 Hz
+                   MODE_SET(OPERATIONAL).
+
+            Flash one board each way. Pulling the orchestrator's USB lead is
+            the dead-man switch test.
+
+            Deliberately a plain bool rather than a choice: a bool can be
+            overridden from an sdkconfig.defaults overlay, which is how
+            sdkconfig.defaults.orch builds the second role without a manual
+            menuconfig pass.
+
+    choice PS_BENCH_LED_REV
+        prompt "DevKitC-1 revision (sets the onboard RGB LED pin)"
+        default PS_BENCH_LED_V11
+        help
+            Espressif moved the onboard WS2812 between board revisions:
+            GPIO48 on v1.0, GPIO38 on v1.1. GPIO47/48 are fed from the 1.8 V
+            VDD_SPI rail used by PSRAM, which is why it moved.
+
+            Listings frequently do not say which revision they ship. If the LED
+            stays dark, you almost certainly have the other one — the firmware
+            prints the configured pin at boot and says so. Use LED PROBE below
+            if you want the board to tell you.
+
+        config PS_BENCH_LED_V11
+            bool "v1.1 — GPIO38"
+        config PS_BENCH_LED_V10
+            bool "v1.0 — GPIO48"
+        config PS_BENCH_LED_CUSTOM
+            bool "Custom pin"
+        config PS_BENCH_LED_NONE
+            bool "No LED (log only)"
+    endchoice
+
+    config PS_BENCH_LED_GPIO_CUSTOM
+        int "Custom RGB LED GPIO"
+        depends on PS_BENCH_LED_CUSTOM
+        default 38
+
+    config PS_BENCH_LED_PROBE
+        bool "LED probe at boot (identify the board revision)"
+        default n
+        help
+            Drives GPIO38 and GPIO48 in turn for two seconds each, announcing
+            which is active over serial. Whichever makes the LED light is your
+            revision. One-time diagnostic: turn it off afterwards.
+
+    config PS_BENCH_CAN_TX_GPIO
+        int "TWAI TX GPIO"
+        default 4
+        help
+            Safe on every S3 module: not a strapping pin, not bonded to flash
+            or PSRAM (26-32, and 35-37 on Octal-PSRAM R8 parts), not USB
+            (19/20), not UART0 console (43/44).
+
+    config PS_BENCH_CAN_RX_GPIO
+        int "TWAI RX GPIO"
+        default 5
+
+    config PS_BENCH_NODE_ID
+        int "CAN node id (1-6 for a limb; 8 is the orchestrator)"
+        default 1
+        range 1 8
+
+endmenu
