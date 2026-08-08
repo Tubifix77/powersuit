@@ -1,3 +1,11 @@
-# Overlay that flips this image to the heartbeat source. Build with:
+# Overlay that flips this image to the heartbeat source.
+#
+# The -D SDKCONFIG path must be one that does not already exist: ESP-IDF treats
+# an existing sdkconfig as authoritative and only consults the defaults for
+# symbols missing from it, so reusing a build directory silently ignores this
+# file and hands you the previous role's image. Always verify afterwards:
+#   grep PS_BENCH_IS_ORCH <builddir>/sdkconfig
+#
+# Build with:
 #   idf.py -B build_orch -D SDKCONFIG=build_orch/sdkconfig #          -D SDKCONFIG_DEFAULTS="../../sdkconfig.defaults.common;sdkconfig.defaults;sdkconfig.defaults.orch" #          build
 CONFIG_PS_BENCH_IS_ORCH=y

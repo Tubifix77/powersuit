@@ -13,10 +13,14 @@ menu "Powersuit bench node"
             Flash one board each way. Pulling the orchestrator's USB lead is
             the dead-man switch test.
 
-            Deliberately a plain bool rather than a choice: a bool can be
-            overridden from an sdkconfig.defaults overlay, which is how
-            sdkconfig.defaults.orch builds the second role without a manual
-            menuconfig pass.
+            A plain bool rather than a choice purely for simplicity — both
+            override fine from an sdkconfig.defaults overlay PROVIDED the
+            generated sdkconfig does not already exist. ESP-IDF treats an
+            existing sdkconfig as authoritative and consults the defaults only
+            for symbols it does not already contain, so a changed overlay is
+            ignored on every build after the first. Delete the sdkconfig (or
+            point -D SDKCONFIG at a fresh path) before switching roles, and
+            read the generated file back to confirm the override landed.
 
     choice PS_BENCH_LED_REV
         prompt "DevKitC-1 revision (sets the onboard RGB LED pin)"

@@ -229,6 +229,41 @@ Three things that account for most first-time failures:
 - **Common ground.** Two boards on separate USB ports usually share ground
   through the PC, but tie the transceiver grounds anyway.
 
+## A.4b Building the two roles (read this before scripting it)
+
+One image, two roles. The limb is the default; the orchestrator is an overlay:
+
+```bash
+idf.py -B build_limb -D SDKCONFIG=build_limb/sdkconfig build
+```
+
+```bash
+rm -rf build_orch
+idf.py -B build_orch -D SDKCONFIG=build_orch/sdkconfig        -D SDKCONFIG_DEFAULTS="../../sdkconfig.defaults.common;sdkconfig.defaults;sdkconfig.defaults.orch"        build
+```
+
+**ESP-IDF treats an existing `sdkconfig` as authoritative** and consults
+`sdkconfig.defaults` only for symbols the sdkconfig does not already contain.
+So on the second and every later build, a changed overlay is ignored — not
+partially, entirely. Reuse a build directory and you get the previous role's
+image while the build reports success.
+
+Two habits make this a non-issue, and both are cheap:
+
+- point `-D SDKCONFIG` at a path that does not exist yet (or delete it first),
+- **read the generated sdkconfig back** and confirm the override actually landed:
+
+```bash
+grep PS_BENCH_IS_ORCH build_orch/sdkconfig     # expect: CONFIG_PS_BENCH_IS_ORCH=y
+```
+
+Two boards flashed with silently identical firmware is a genuinely confusing
+way to start a bench session: neither board beats, both sit amber, and it looks
+exactly like a wiring fault.
+
+(Credit: diagnosed on a sibling ESP32-S3 project after an int override was seen
+reverting between runs.)
+
 ## A.5 What you should see
 
 ```bash
