@@ -141,15 +141,33 @@ LIMB (`idf.py menuconfig` → *Powersuit bench node*).
 
 ## A.1 Shopping list
 
-| Item | Qty | Note |
-|------|-----|------|
-| ESP32-S3-DevKitC-1 | 2 | Buy **with headers pre-soldered**. N16R8 (16 MB flash / 8 MB Octal PSRAM) is what this config assumes. |
-| SN65HVD230 CAN transceiver breakout | 2 | Most of these carry their own 120 Ω termination, so a two-node bus made from two of them is already terminated at both ends. Check your listing — modules vary, and a few ship the resistor unpopulated or on a jumper. |
-| Breadboard + male-female dupont jumpers | 1 set | Push-fit only. |
-| USB cables | 2 | One per board, so you can watch both serial logs at once. |
+The real order, shared with a sibling ESP32-S3 project. Items marked **[both]**
+serve that project too; **[sibling]** is not needed for anything in this repo.
 
-No separate resistors, no LEDs: the DevKitC-1 has an addressable RGB LED
-onboard, and `node_bench` uses it to show safety state.
+| # | Item | Qty | Notes |
+|---|------|-----|-------|
+| 1 | ESP32-S3-DevKitC-1 **N16R8**, headers pre-soldered, two USB sockets | 3 | **[both]** Two is the minimum here — one orchestrator, one limb. The third is a spare and makes the sibling project's beacon comparison meaningful. N16R8 is what `node_bench` assumes (16 MB flash, 8 MB Octal PSRAM). |
+| 2 | USB cables matching the sockets | 3 | **[both]** Check the product photos: Micro-USB vs USB-C varies by board revision, and the two sockets on one board are not always the same type. |
+| 3 | Powered USB hub | 1 | **[sibling]** For a 24 h soak. Three boards drawing from PC ports is where brownouts and enumeration dropouts start looking like firmware faults. Not needed for the bench test below. |
+| 4 | SN65HVD230 CAN transceiver module | 2 | **[both]** Two is deliberate — see the termination note. |
+| 5 | Dupont jumper mixed pack (M-M, M-F, F-F) | 1 | **[both]** About 11 wires for the wiring in A.4. |
+| 6 | Small breadboard | 1 | Optional. With F-F jumpers in the pack you can go board-to-transceiver directly. |
+| 7 | USB-serial adapter (CH340/CP2102) | 1 | Optional. The DevKitC-1 has USB-serial-JTAG onboard, so the console works with nothing extra. |
+
+No resistors and no LEDs: the DevKitC-1 carries an addressable RGB LED, and
+`node_bench` uses it to show safety state.
+
+**Why two transceivers and not three.** Most SN65HVD230 breakouts carry their
+own 120 Ω termination. Two of them give the correct 60 Ω across the bus; three
+give 40 Ω, which is out of spec. Only the two physical ends of a CAN segment
+should be terminated, so a three-node bus needs the middle module's resistor
+lifted — not an option without a soldering iron unless the module puts it on a
+jumper. Two nodes on CAN is everything this appendix needs; a third board can
+still participate over the radio.
+
+**F-F is the jumper you will actually use.** With headers pre-soldered, both the
+DevKit and the transceiver present male pins, so connecting them directly needs
+female-female. That is what makes the breadboard optional rather than required.
 
 ## A.2 Which pins are safe, and why
 
