@@ -17,7 +17,8 @@ The system specification is [`ARCHITECTURE.md`](ARCHITECTURE.md). The *normative
 contract* — the one every node actually codes against — is [`docs/network-map.md`](docs/network-map.md),
 with safety semantics in [`docs/safety.md`](docs/safety.md) and the cloud link in
 [`docs/link-protocol.md`](docs/link-protocol.md). When hardware arrives,
-[`docs/bringup.md`](docs/bringup.md) is the order to prove it in. Where reality forced a departure from the
+[`docs/bringup.md`](docs/bringup.md) is the order to prove it in, and
+[`docs/hardware-bom.md`](docs/hardware-bom.md) is what it costs. Where reality forced a departure from the
 original specification, it is recorded in [network-map §12](docs/network-map.md#12-deviations-from-architecturemd)
 rather than quietly implemented.
 
