@@ -20,9 +20,19 @@ OUT="$REPO/.qemu"
 IDF_IMAGE="espressif/idf:v5.5.5"
 TIMEOUT_S="${QEMU_TIMEOUT_S:-120}"
 
-# Espressif's QEMU fork ships with the IDF tools; fall back to PATH.
-QEMU="$(ls -d "$HOME"/.espressif/tools/qemu-xtensa/*/qemu/bin/qemu-system-xtensa* 2>/dev/null | head -1)"
-[ -n "$QEMU" ] || QEMU="$(command -v qemu-system-xtensa || true)"
+# Espressif's QEMU fork ships with the IDF tools. Search every place it lands:
+# $IDF_TOOLS_PATH is /opt/esp inside the espressif/idf image, ~/.espressif on a
+# normal install. The `|| true` matters — a failing `ls` exits 2, pipefail
+# propagates it, and set -e would kill the script before the message below.
+find_qemu() {
+    for root in "${IDF_TOOLS_PATH:-}" "$HOME/.espressif" /opt/esp; do
+        [ -n "$root" ] || continue
+        hit=$(ls -d "$root"/tools/qemu-xtensa/*/qemu/bin/qemu-system-xtensa* 2>/dev/null | head -1) || true
+        [ -n "$hit" ] && { echo "$hit"; return 0; }
+    done
+    command -v qemu-system-xtensa 2>/dev/null || true
+}
+QEMU="$(find_qemu)"
 if [ -z "$QEMU" ]; then
     echo "qemu-system-xtensa not found." >&2
     echo "Install with: python \$IDF_PATH/tools/idf_tools.py install qemu-xtensa" >&2
