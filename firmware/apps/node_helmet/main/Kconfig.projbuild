@@ -21,12 +21,13 @@ menu "Powersuit node_helmet Configuration"
         config PS_WAKE_ESP_SR
             bool "esp-sr wake word (WakeNet)"
             help
-                Gates the uplink on a specific wake word instead of any
-                sound above threshold. Requires espressif/esp-sr to be added
-                to main/idf_component.yml and a model flashed into the
-                "model" partition; audio_in_task.c's esp-sr calls are guarded
-                by CONFIG_PS_WAKE_ESP_SR so selecting this without vendoring
-                esp-sr fails the build loudly rather than silently.
+                NOT IMPLEMENTED. The option and the reserved "model" flash
+                partition exist, but no WakeNet integration has been written.
+                Selecting this fails the build with an #error explaining what
+                is missing, rather than quietly falling back to the energy
+                gate. Implementing it means adding espressif/esp-sr to
+                main/idf_component.yml, flashing a model into the "model"
+                partition, and feeding AFE/WakeNet from audio_in_task.c.
     endchoice
 
 endmenu

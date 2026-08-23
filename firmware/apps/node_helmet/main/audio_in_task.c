@@ -22,6 +22,15 @@
 
 static const char *TAG = "node_helmet";
 
+#if CONFIG_PS_WAKE_ESP_SR
+/* Not implemented. The Kconfig option exists because the partition table
+ * reserves a "model" partition for it, but no WakeNet integration has been
+ * written — selecting it used to build the energy gate silently, which is a
+ * config option that lies about what the firmware does. Fail the build
+ * instead, and say what it would take. */
+#error "PS_WAKE_ESP_SR is not implemented: add espressif/esp-sr to main/idf_component.yml, flash a WakeNet model into the 'model' partition, and write the AFE/WakeNet feed here. Use PS_WAKE_ENERGY_GATE until then."
+#endif
+
 #define AUDIO_IN_STACK 4096
 #define AUDIO_IN_PRIO  12
 #define AUDIO_IN_CORE  0
