@@ -11,6 +11,8 @@ and a GPU cloud service reachable over 5G.
 > Every tier compiles and its logic is tested — 253 Python tests, 11 C suites under
 > `-Werror`, four firmware images, a ROS 2 workspace, and ten end-to-end scenarios
 > against a simulated suit. Nothing below the driver layer has touched silicon.
+> Bench hardware was ordered on 2026-09-21 and is expected mid-October 2026;
+> [Appendix A](docs/bringup.md) of the bring-up guide is what it proves first.
 > See [Verified vs unproven](#verified-vs-unproven).
 
 The system specification is [`ARCHITECTURE.md`](ARCHITECTURE.md). The *normative engineering

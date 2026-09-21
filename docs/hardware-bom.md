@@ -11,7 +11,8 @@ the node list, and each app's `board_*.h` for what hangs off it.
   and marked as such.
 - Marketplace prices move constantly and vary several-fold between sellers for
   what looks like the same part.
-- Nothing here has been bought or verified. This is a planning document.
+- **Tier A was bought on 2026-09-21** and the prices marked *paid* below are
+  actuals. Everything else here is an unbought, unverified planning estimate.
 - **Actuators dominate everything.** Read §4 before budgeting.
 
 ---
@@ -20,7 +21,7 @@ the node list, and each app's `board_*.h` for what hangs off it.
 
 | Tier | What it is | Actuators | Rough total |
 |------|-----------|-----------|-------------|
-| **A — Bench** | Two boards proving the network and safety logic. Already ordered. | none | **~€60** |
+| **A — Bench** | Three boards proving the network and safety logic. **Ordered 2026-09-21.** | none | **DKK 408 landed (~€55)** |
 | **B — Cosplay** | Full nine-node electronics, articulated shell, non-load-bearing. Lights, sound, HUD, servo-driven panels. | hobby servos | **~€700–1,100** |
 | **C — Spec** | The torque figures actually written in `board_limb.h`. A machine that moves a human. | 8 robot joints | **~€12,000–35,000+** |
 
@@ -35,9 +36,9 @@ This is the part this repository is actually about, and it is the cheap part.
 
 | Node | Item | Qty | Unit | Subtotal | Note |
 |------|------|-----|------|----------|------|
-| 1–4, 5, 6 | ESP32-S3-DevKitC-1 N16R8 | 6 | ~€8 | €48 | eBay listing seen at **US $7.41**; AliExpress typically similar or lower |
+| 1–4, 5, 6 | ESP32-S3-DevKitC-1 N16R8 | 6 | €7.73 | €46 | **Paid** — AliExpress, 2026-09-21, DKK 57.69 each |
 | 7 | ESP32-P4 dev board | 1 | ~€20 | €20 | Newer part, thinner supply, wider price spread |
-| 1–7 | SN65HVD230 CAN transceiver | 7 | ~€4 | €28 | One per node; only the two bus ends keep their 120 Ω |
+| 1–7 | SN65HVD230 CAN transceiver | 7 | €2.17 | €15 | **Paid** — AliExpress, 2026-09-21, DKK 16.22 each. One per node; only the two bus ends keep their 120 Ω |
 | 1–5 | MPU-6050 IMU (or MPU-6500) | 5 | ~€3 | €15 | Four limbs plus the torso IMU on node 5 |
 | 6 | INMP441 I2S MEMS microphone | 1 | ~€4 | €4 | |
 | 6 | MAX98357A I2S amp + small speaker | 1 | ~€6 | €6 | |
@@ -45,7 +46,7 @@ This is the part this repository is actually about, and it is the cheap part.
 | 7 | WS2812 24-pixel ring | 1 | ~€5 | €5 | Arc reactor |
 | 8 | Raspberry Pi 5 (8 GB) + PSU + SD | 1 | ~€110 | €110 | |
 | all | Wiring, connectors, JST/XT60, heatshrink | — | — | ~€60 | Harness for a whole suit adds up |
-| | **Electronics subtotal** | | | **~€300** | |
+| | **Electronics subtotal** | | | **~€290** | |
 
 Node 9 is cloud-side: **€0** with the bundled mock engine, or roughly **€5–30/month**
 for a small VPS, or GPU-hourly if you point it at real inference.
@@ -121,8 +122,10 @@ by firmware: see `docs/safety.md` §4.
 
 ## 5. What to actually buy, in order
 
-1. **Tier A bench (~€60)** — `docs/bringup.md` Appendix A. Proves the network and
-   the dead-man switch. Already ordered.
+1. **Tier A bench** — `docs/bringup.md` Appendix A. Proves the network and the
+   dead-man switch. **Ordered 2026-09-21: DKK 408 landed (~€55), Danish import
+   charges included.** Three boards, two transceivers, F-F jumpers, a 6-port
+   charger, and a CP2102 that only the sibling project needs.
 2. **Add the §2 electronics incrementally** as each node becomes interesting.
    Every node except the hub is under €20 of parts.
 3. **Decide Tier B or C before buying anything mechanical.** They share the

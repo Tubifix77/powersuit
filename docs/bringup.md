@@ -141,21 +141,45 @@ LIMB (`idf.py menuconfig` → *Powersuit bench node*).
 
 ## A.1 Shopping list
 
-The real order, shared with a sibling ESP32-S3 project. Items marked **[both]**
+**Ordered 2026-09-21 — DKK 408 landed** (DKK 296 goods, DKK 136 Danish import
+charges, DKK 23.50 duty reduction), AliExpress Choice, expected mid-October 2026.
+An EU-supplier comparison was run and rejected: jumper wire at four times the
+price, and no EU listing carried a two-USB-C-socket N16R8 board at all.
+
+The order is shared with a sibling ESP32-S3 project. Items marked **[both]**
 serve that project too; **[sibling]** is not needed for anything in this repo.
 
-| # | Item | Qty | Notes |
-|---|------|-----|-------|
-| 1 | ESP32-S3-DevKitC-1 **N16R8**, headers pre-soldered, two USB sockets | 3 | **[both]** Two is the minimum here — one orchestrator, one limb. The third is a spare and makes the sibling project's beacon comparison meaningful. N16R8 is what `node_bench` assumes (16 MB flash, 8 MB Octal PSRAM). |
-| 2 | USB cables matching the sockets | 3 | **[both]** Check the product photos: Micro-USB vs USB-C varies by board revision, and the two sockets on one board are not always the same type. |
-| 3 | Powered USB hub | 1 | **[sibling]** For a 24 h soak. Three boards drawing from PC ports is where brownouts and enumeration dropouts start looking like firmware faults. Not needed for the bench test below. |
-| 4 | SN65HVD230 CAN transceiver module | 2 | **[both]** Two is deliberate — see the termination note. |
-| 5 | Dupont jumper mixed pack (M-M, M-F, F-F) | 1 | **[both]** About 11 wires for the wiring in A.4. |
-| 6 | Small breadboard | 1 | Optional. With F-F jumpers in the pack you can go board-to-transceiver directly. |
-| 7 | USB-serial adapter (CH340/CP2102) | 1 | Optional. The DevKitC-1 has USB-serial-JTAG onboard, so the console works with nothing extra. |
+| # | Item | Qty | Paid | Notes |
+|---|------|-----|------|-------|
+| 1 | ESP32-S3-DevKitC-1 **N16R8**, headers pre-soldered, two **USB-C** sockets | 3 | €7.73 ea | **[both]** Two is the minimum here — one orchestrator, one limb. The third is a spare and makes the sibling project's beacon comparison meaningful. N16R8 is what `node_bench` assumes (16 MB flash, 8 MB Octal PSRAM), and the sibling's memory figures are all attributed to it. |
+| 2 | SN65HVD230 CAN transceiver module | 2 | €2.17 ea | **[both]** Two is deliberate — see the termination note. |
+| 3 | Dupont jumper, **female-female, 20 cm**, 40-way | 1 | €2.31 | **[both]** 11 wires for the wiring in A.4. 20 cm is set by the board-to-board ground tie, the longest run on the bench. |
+| 4 | CP2102 USB-TTL adapter, **3.3 V**, USB-A dongle | 1 | €2.46 | **[sibling]** Reaches that project's UART1 frame link. Nothing here needs it — the DevKitC-1's onboard bridge carries this console. |
+| 5 | 6-port USB mains charger | 1 | €7.75 | Powers any board whose log you do not need to read — see A.4c. |
 
 No resistors and no LEDs: the DevKitC-1 carries an addressable RGB LED, and
 `node_bench` uses it to show safety state.
+
+**Deliberately not bought, and why:**
+
+- **USB cables.** The one item buyable locally the same day, so not worth
+  importing — and the lengths are impossible to plan before the parts are in
+  hand. You need **USB-A to USB-C, data-capable**, one per board. A charge-only
+  cable powers the board and it never enumerates, which presents as a dead board
+  or a driver fault and costs an hour.
+- **Powered USB hub.** Three direct PC ports beat a hub: each board gets its own
+  500 mA budget with nothing shared. A hub only earns its place if you are short
+  of ports, or want one cable rather than three crossing a room. A *bus-powered*
+  hub is the wrong answer regardless — 500–900 mA shared against roughly
+  1050 mA of peak demand from three boards, and it sags occasionally rather than
+  failing cleanly, which fakes exactly the faults a soak exists to measure.
+- **Breadboard.** Everything has male pins, so F-F jumpers join them directly.
+- **120 Ω resistors.** Each module carries its own.
+- **Multimeter.** Genuinely useful and only about DKK 50, but not required for
+  this bench: at two nodes over 20 cm, propagation is ~1.5 ns against a 1 µs bit
+  time, so termination barely matters. `node_bench`'s `rx_frames` and
+  `bus_errors` counters are the better instrument for the failure you will
+  actually hit, which is a swapped TX/RX pair.
 
 **Why two transceivers and not three.** Most SN65HVD230 breakouts carry their
 own 120 Ω termination. Two of them give the correct 60 Ω across the bus; three
@@ -215,15 +239,22 @@ again afterwards.
 
 ## A.4 Wiring
 
+The module ordered (EGBO SN65HVD230 / VP230) carries a 4-pin male header
+labelled **3.3V / GND / RX / TX** top to bottom, and brings CANH and CANL out
+**twice, in parallel** — on a 2-pin header and on a blue screw terminal. Every
+connector on it is male pins, which is why the whole bench wires with
+female-female jumpers and no breadboard. There is no RS pin on the header;
+slope control is handled on the board, so there is nothing to tie to ground.
+
 Per board, four jumpers to its transceiver:
 
 ```
    ESP32-S3-DevKitC-1              SN65HVD230 module
    ------------------              -----------------
-   3V3  ----------------------->   VCC     (3.3 V — NOT 5 V; the S3 is 3.3 V)
+   3V3  ----------------------->   3.3V    (3.3 V — NOT 5 V; the S3 is 3.3 V)
    GND  ----------------------->   GND
-   GPIO4 (TWAI TX) ----------->    CTX  / TXD
-   GPIO5 (TWAI RX) <-----------    CRX  / RXD
+   GPIO4 (TWAI TX) ----------->    TX
+   GPIO5 (TWAI RX) <-----------    RX
 ```
 
 Then the bus itself, between the two transceiver modules:
@@ -233,8 +264,19 @@ Then the bus itself, between the two transceiver modules:
    -------------                   -------------
    CANH ------------------------>  CANH
    CANL ------------------------>  CANL
-   GND  ------------------------>  GND     (tie the grounds together)
 ```
+
+And one ground tie — **between the two DevKits, not between the modules.** The
+transceiver's header carries a single GND pin and it is already occupied by the
+wire to its own board. Use any spare GND on each DevKit:
+
+```
+   DevKit A  GND (spare) ------->  DevKit B  GND (spare)
+```
+
+The screw terminals then stay free, which is useful: you can clamp meter probes
+onto CANH/CANL while the bus is live without unplugging anything, and a screw
+terminal takes bare wire, so the bus itself is never limited to jumper length.
 
 Three things that account for most first-time failures:
 
@@ -244,8 +286,10 @@ Three things that account for most first-time failures:
   `bus_errors` climbing with `rx_frames` stuck at zero.
 - **CANH goes to CANH.** Unlike a serial crossover, the differential pair is
   straight-through.
-- **Common ground.** Two boards on separate USB ports usually share ground
-  through the PC, but tie the transceiver grounds anyway.
+- **Common ground.** Two boards on the same PC share ground through it — but if
+  one runs from the charger (A.4c) they do not, because a two-pin mains charger's
+  output floats. CAN needs a common reference, so run the tie regardless. It is
+  one wire.
 
 ## A.4b Building the two roles (read this before scripting it)
 
@@ -281,6 +325,27 @@ exactly like a wiring fault.
 
 (Credit: diagnosed on a sibling ESP32-S3 project after an int override was seen
 reverting between runs.)
+
+## A.4c Powering a board whose console you do not need
+
+Once both boards are flashed, the orchestrator needs nothing but 5 V — you are
+going to cut its power on purpose, and that is the whole of step A.5.3. So it can
+run from a USB mains charger, leaving a single PC port for the limb, whose log you
+do need to read. Pulling the charger lead is also a cleaner trigger than yanking a
+cable out of the PC.
+
+Two limits on that:
+
+- **A charger carries no data.** Any board whose log you need must be on a PC
+  port. The sibling project's 24 h soak needs all three boards on real ports for
+  exactly this reason — there, every node's stream is the measurement.
+- **Never power one board from the charger and the PC at once** through its two
+  USB-C sockets. Both feed the same 5 V rail, and tying two supplies together is
+  not a fault you will enjoy diagnosing.
+
+Both sockets are USB-C and visually identical; only the silkscreen distinguishes
+`UART` from `USB`. Mark the UART side of each board at unboxing — you will plug
+these in hundreds of times, and "wrong socket" looks exactly like "dead board".
 
 ## A.5 What you should see
 
