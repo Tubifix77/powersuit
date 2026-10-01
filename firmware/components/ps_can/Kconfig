@@ -13,9 +13,18 @@ menu "ps_can (TWAI transport)"
 
     config PS_CAN_BITRATE
         int "CAN bitrate (bit/s)"
+        range 25000 1000000
         default 1000000
         help
             Contract value is 1 Mbps on both buses (docs/network-map.md §2).
-            The bus load budget in §10 assumes it.
+            The bus load budget in §10 assumes it; anything lower is a bench
+            setting, not a suit setting. Every node on a segment must agree.
+
+            Bench note: the SN65HVD230 modules in docs/bringup.md A.1 run in
+            slope-control mode (Rs reported fixed at 10 kOhm, ~15 V/us, ~100 ns
+            loop delay). TI specifies the part to 1 Mbps in that mode, and two
+            nodes over 20 cm need ~200 ns of a ~750 ns sample point, so 1 Mbps
+            is in spec. If bus_errors climb anyway, 250000 is the fallback:
+            BENCH_CAN_BITRATE=250000 bash firmware/tools/build_bench.sh
 
 endmenu

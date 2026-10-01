@@ -448,3 +448,18 @@ boards with the same role look exactly like a wiring fault.
 If step 1 shows a dark LED rather than amber, read A.3 before suspecting the
 driver. If step 2 never happens, check `rx_frames` in the limb's 2-second status
 line: zero means wiring, non-zero means something else.
+
+**If `bus_errors` climb with wiring you have checked twice**, rebuild both roles at
+the fallback rate and flash both boards again:
+
+```bash
+BENCH_CAN_BITRATE=250000 bash firmware/tools/build_bench.sh
+```
+
+The transceivers run in slope-control mode, and although TI specifies them to
+1 Mbps in that mode (see [bench-log.md](bench-log.md)), 250 kbit/s removes the
+question entirely: the dead-man test needs about 100 frames a second, which is
+under 7% of the bus even there. Each board prints its rate in the boot banner
+(`TWAI : ... @ 250000 bit/s`), and **both must match** — a rate mismatch between
+the two boards looks exactly like a wiring fault. Go back to 1 Mbps afterwards;
+it is the contract rate, and the bus budget in `network-map.md` §10 assumes it.

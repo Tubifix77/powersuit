@@ -19,7 +19,7 @@
 #define HUB_CAN1_RX_GPIO        27
 #define HUB_CAN2_TX_GPIO        28      /* Bus 2: legs + flight */
 #define HUB_CAN2_RX_GPIO        29
-#define HUB_CAN_BITRATE         1000000u /* contract §2 */
+#define HUB_CAN_BITRATE         CONFIG_PS_CAN_BITRATE /* contract §2: 1 Mbps */
 
 /* ---- SPI2 slave link to Node 8 (IO_MUX pads, 20 MHz per §12.1) ---- */
 #define HUB_SPI_MOSI_GPIO       CONFIG_PS_SPIB_MOSI_GPIO        /* 8  */

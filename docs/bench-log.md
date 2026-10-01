@@ -81,6 +81,27 @@ used.
 units): 4-pin header `3.3V / GND / RX / TX`; no RS pin exposed; CANH/CANL out
 twice in parallel, on a 2-pin header and a screw terminal.
 
+**Transceiver Rs and bitrate.** The sibling project reports Rs fixed at 10 kΩ on
+the module (not on the header, so not changeable without soldering), which puts
+the SN65HVD230 in *slope-control* mode. It concluded the bus must run at
+250 kbit/s or lower. Checked against TI's datasheet (SLOS346O, rev. April 2018),
+that conclusion does not hold:
+
+- 10 kΩ gives ~15 V/µs edges and ~100 ns loop delay, against ~70 ns in
+  high-speed mode. 100 kΩ gives ~2 V/µs and ~500 ns.
+- The part is "designed for data rates up to 1 Mbps". The datasheet gives no
+  data-rate limit for slope-control mode; the cost it names is bus length.
+- "250 kbps" appears only as the caption of Figure 41, a *typical* waveform
+  measured at that rate. It is a test condition, not a ceiling.
+- At 1 Mbps the bit is 1000 ns and the sample point ~750 ns. Two 10 kΩ
+  transceivers plus 20 cm of wire need ~200 ns of round trip. In spec, with
+  margin. At 100 kΩ it would not be.
+
+So the bench runs at the contract's 1 Mbps, with 250 kbit/s as a one-variable
+fallback (`BENCH_CAN_BITRATE=250000`, see [bringup.md](bringup.md) A.5) if the
+hardware disagrees with the datasheet. That fallback was built and role-checked
+before any board was touched. The 10 kΩ value itself is reported, not measured.
+
 **Host tooling.** esptool v5 spells commands with hyphens (`chip-id`, `flash-id`,
 `read-flash`, `get-security-info`, `write-flash`); the underscore forms are
 deprecated and warn. pyserial is not in the system Python — it lives in ESP-IDF's
@@ -105,6 +126,8 @@ CAN bench is unaffected: it is wired.
 
 - **RGB LED pin** — GPIO38 (v1.1) or GPIO48 (v1.0). Potluck's firmware never
   drives the LED, so nothing was learned. Use the [A.3](bringup.md) probe mode.
+- **Transceiver Rs** — 10 kΩ as reported; not read off the board or measured.
+  Whether 1 Mbps is clean on this bench is the first thing A.5 will show.
 - **Transceiver termination** — an SMD part marked `121` (120 Ω) suggests onboard
   termination; unmeasured, and no multimeter was bought. At two nodes over 20 cm
   it barely matters.

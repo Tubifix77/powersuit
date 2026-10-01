@@ -51,7 +51,7 @@ void app_main(void)
         .controller = 0,   /* ESP32-S3: one TWAI controller (ps_can.h contract) */
         .tx_gpio = PS_BOARD_CAN_TX_GPIO,
         .rx_gpio = PS_BOARD_CAN_RX_GPIO,
-        .bitrate = 1000000u,
+        .bitrate = CONFIG_PS_CAN_BITRATE,
         .node_id = node_id,
     };
     ESP_ERROR_CHECK(ps_can_open(&can_cfg, &can));

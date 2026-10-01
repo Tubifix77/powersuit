@@ -257,8 +257,10 @@ void app_main(void)
     ESP_LOGI(TAG, "==== powersuit bench node ====");
     ESP_LOGI(TAG, "role      : %s", BENCH_ROLE_NAME);
     ESP_LOGI(TAG, "node id   : %d", BENCH_NODE_ID);
-    ESP_LOGI(TAG, "TWAI      : TX=GPIO%d RX=GPIO%d @ 1 Mbps",
-             CONFIG_PS_BENCH_CAN_TX_GPIO, CONFIG_PS_BENCH_CAN_RX_GPIO);
+    /* Both boards must print the same rate; a mismatch looks like bad wiring. */
+    ESP_LOGI(TAG, "TWAI      : TX=GPIO%d RX=GPIO%d @ %d bit/s",
+             CONFIG_PS_BENCH_CAN_TX_GPIO, CONFIG_PS_BENCH_CAN_RX_GPIO,
+             CONFIG_PS_CAN_BITRATE);
     ESP_LOGI(TAG, "RGB LED   : GPIO%d (DevKitC-1 %s)", BENCH_LED_GPIO, BENCH_LED_REV);
     /* Said loudly and unconditionally: a wrong revision is a dark LED, which
      * is indistinguishable from a broken driver if nothing tells you. */
@@ -286,7 +288,7 @@ void app_main(void)
         .controller = 0,
         .tx_gpio = CONFIG_PS_BENCH_CAN_TX_GPIO,
         .rx_gpio = CONFIG_PS_BENCH_CAN_RX_GPIO,
-        .bitrate = 1000000,
+        .bitrate = CONFIG_PS_CAN_BITRATE,
         .node_id = BENCH_NODE_ID,
     };
     esp_err_t err = ps_can_open(&can_cfg, &s_can);

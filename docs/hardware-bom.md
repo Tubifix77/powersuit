@@ -48,6 +48,15 @@ This is the part this repository is actually about, and it is the cheap part.
 | all | Wiring, connectors, JST/XT60, heatshrink | — | — | ~€60 | Harness for a whole suit adds up |
 | | **Electronics subtotal** | | | **~€290** | |
 
+**On the transceiver modules:** the cheap SN65HVD230 breakouts typically fix the
+Rs pin at 10 kΩ, which is slope-control mode — slower edges, about 30 ns more
+loop delay per node than high-speed mode. TI specifies the part to 1 Mbps either
+way, and at suit-harness lengths of a few metres 10 kΩ is comfortably in budget.
+Two things would break it: a module with Rs at 100 kΩ (~500 ns loop delay, no
+longer viable at 1 Mbps), or a much longer harness. For the full build, prefer
+modules that ground Rs (high-speed mode) or bring it out to a pin. Detail and the
+datasheet references are in `docs/bench-log.md`.
+
 Node 9 is cloud-side: **€0** with the bundled mock engine, or roughly **€5–30/month**
 for a small VPS, or GPU-hourly if you point it at real inference.
 

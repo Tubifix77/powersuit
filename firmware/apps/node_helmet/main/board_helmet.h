@@ -6,12 +6,13 @@
  * framing — is at the contract rate. */
 #pragma once
 
+#include "sdkconfig.h"
 #include "driver/gpio.h"
 
 /* ---- CAN (bus 1: arms + helmet) ---- */
 #define HELMET_CAN_TX_GPIO      4
 #define HELMET_CAN_RX_GPIO      5
-#define HELMET_CAN_BITRATE      1000000u
+#define HELMET_CAN_BITRATE      CONFIG_PS_CAN_BITRATE /* contract §2: 1 Mbps */
 
 /* ---- I2S microphone (INMP441-class, 32-bit slot, mono left) ---- */
 #define HELMET_MIC_BCLK_GPIO    15

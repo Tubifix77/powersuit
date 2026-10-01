@@ -34,7 +34,7 @@ void app_main(void)
         .controller = 0,
         .tx_gpio = PS_BOARD_CAN_TX_GPIO,
         .rx_gpio = PS_BOARD_CAN_RX_GPIO,
-        .bitrate = 1000000,
+        .bitrate = CONFIG_PS_CAN_BITRATE,
         .node_id = PS_NODE_FLIGHT,
     };
     ps_can_handle_t can;

@@ -3,6 +3,7 @@
 # actually landed in each image.
 #
 #   bash firmware/tools/build_bench.sh
+#   BENCH_CAN_BITRATE=250000 bash firmware/tools/build_bench.sh   # fallback rate
 #
 # Output: firmware/apps/node_bench/build_limb/ and build_orch/, on the bind mount
 # so the host can flash them (docs/bringup.md A.4d). The full build log goes to
@@ -29,18 +30,34 @@ host_path() { echo "$1" | sed -e 's|^/\([a-z]\)/|\1:/|'; }
 
 rm -rf "$APP/build_limb" "$APP/build_orch"
 
+# Optional bitrate overlay, applied to BOTH roles: a rate mismatch between the
+# two boards is indistinguishable from a wiring fault. Lives beside the build
+# dirs so it is covered by .gitignore (build_*/).
+BITRATE="${BENCH_CAN_BITRATE:-1000000}"
+case "$BITRATE" in *[!0-9]*|"") echo "BENCH_CAN_BITRATE must be a number" >&2; exit 1;; esac
+OVL=""
+if [ "$BITRATE" != 1000000 ]; then
+    mkdir -p "$APP/build_overlay"
+    echo "CONFIG_PS_CAN_BITRATE=$BITRATE" > "$APP/build_overlay/bitrate.defaults"
+    OVL=";build_overlay/bitrate.defaults"
+    echo "== bench bitrate override: $BITRATE bit/s (contract is 1000000)"
+else
+    rm -rf "$APP/build_overlay"
+fi
+
 echo "== building node_bench: limb, then orchestrator (log: .verify-logs/bench_build.log)"
 set +e
 MSYS_NO_PATHCONV=1 docker run --rm \
     -v "$(host_path "$REPO"):/ws" -v ps_ccache:/root/.ccache \
-    -e IDF_CCACHE_ENABLE=1 -w "/ws/$APP" "$IDF_IMAGE" bash -c '
+    -e IDF_CCACHE_ENABLE=1 -e OVL="$OVL" -w "/ws/$APP" "$IDF_IMAGE" bash -c '
         set -e
         git config --global --add safe.directory "*" 2>/dev/null
         echo "### role: limb"
-        idf.py -B build_limb -D SDKCONFIG=build_limb/sdkconfig build
+        idf.py -B build_limb -D SDKCONFIG=build_limb/sdkconfig \
+            -D SDKCONFIG_DEFAULTS="../../sdkconfig.defaults.common;sdkconfig.defaults$OVL" build
         echo "### role: orch"
         idf.py -B build_orch -D SDKCONFIG=build_orch/sdkconfig \
-            -D SDKCONFIG_DEFAULTS="../../sdkconfig.defaults.common;sdkconfig.defaults;sdkconfig.defaults.orch" \
+            -D SDKCONFIG_DEFAULTS="../../sdkconfig.defaults.common;sdkconfig.defaults;sdkconfig.defaults.orch$OVL" \
             build' >"$LOG" 2>&1
 rc=$?
 set -e
@@ -62,6 +79,8 @@ check() {  # role, sdkconfig, expected-line
 }
 check limb build_limb/sdkconfig "# CONFIG_PS_BENCH_IS_ORCH is not set"
 check orch build_orch/sdkconfig "CONFIG_PS_BENCH_IS_ORCH=y"
+check limb build_limb/sdkconfig "CONFIG_PS_CAN_BITRATE=$BITRATE"
+check orch build_orch/sdkconfig "CONFIG_PS_CAN_BITRATE=$BITRATE"
 for r in limb orch; do
     for f in flasher_args.json node_bench.elf node_bench.bin; do
         [ -f "$APP/build_$r/$f" ] || { echo "  FAIL $r: missing $f" >&2; fail=1; }
