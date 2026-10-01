@@ -81,11 +81,23 @@ used.
 units): 4-pin header `3.3V / GND / RX / TX`; no RS pin exposed; CANH/CANL out
 twice in parallel, on a 2-pin header and a screw terminal.
 
-**Transceiver Rs and bitrate.** The sibling project reports Rs fixed at 10 kΩ on
-the module (not on the header, so not changeable without soldering), which puts
-the SN65HVD230 in *slope-control* mode. It concluded the bus must run at
-250 kbit/s or lower. Checked against TI's datasheet (SLOS346O, rev. April 2018),
-that conclusion does not hold:
+**Transceiver schematic.** The seller's listing for these exact units includes
+the module schematic. It draws **R1 = 10 kΩ from Rs to GND** and **R2 = 120 Ω
+across CANH/CANL**. So:
+
+- **Termination is onboard**, consistent with the `121` marking seen in the
+  photos. Two modules give the ~60 Ω a two-node bus wants; no resistors to buy,
+  and no multimeter needed to establish it.
+- **Rs is fixed at 10 kΩ**, not brought out to the header, so not changeable
+  without soldering. That puts the SN65HVD230 in *slope-control* mode.
+
+Both are confirmed by drawing rather than by measuring these units, which is
+strong evidence for a schematic published against the exact listing.
+
+**Transceiver bitrate.** The sibling project first concluded that slope-control
+mode limits the bus to 250 kbit/s, then withdrew the claim: it came from a model's
+summary of the datasheet, not the datasheet. Checked against the text of TI's
+datasheet itself (SLOS346O, rev. April 2018):
 
 - 10 kΩ gives ~15 V/µs edges and ~100 ns loop delay, against ~70 ns in
   high-speed mode. 100 kΩ gives ~2 V/µs and ~500 ns.
@@ -100,7 +112,7 @@ that conclusion does not hold:
 So the bench runs at the contract's 1 Mbps, with 250 kbit/s as a one-variable
 fallback (`BENCH_CAN_BITRATE=250000`, see [bringup.md](bringup.md) A.5) if the
 hardware disagrees with the datasheet. That fallback was built and role-checked
-before any board was touched. The 10 kΩ value itself is reported, not measured.
+before any board was touched.
 
 **Host tooling.** esptool v5 spells commands with hyphens (`chip-id`, `flash-id`,
 `read-flash`, `get-security-info`, `write-flash`); the underscore forms are
@@ -126,11 +138,8 @@ CAN bench is unaffected: it is wired.
 
 - **RGB LED pin** — GPIO38 (v1.1) or GPIO48 (v1.0). Potluck's firmware never
   drives the LED, so nothing was learned. Use the [A.3](bringup.md) probe mode.
-- **Transceiver Rs** — 10 kΩ as reported; not read off the board or measured.
-  Whether 1 Mbps is clean on this bench is the first thing A.5 will show.
-- **Transceiver termination** — an SMD part marked `121` (120 Ω) suggests onboard
-  termination; unmeasured, and no multimeter was bought. At two nodes over 20 cm
-  it barely matters.
+- **1 Mbps on real wire.** The datasheet says it is in spec; the bench has not
+  shown it yet. `bus_errors` in A.5 is the first evidence either way.
 - **The [A.4d](bringup.md) flash sequence** onto a board. Checked without one: the
   script's dry run, its wrong-role guard, and esptool accepting every generated
   argument (it failed only at opening a nonexistent port).
@@ -144,3 +153,4 @@ CAN bench is unaffected: it is wired.
 | 2026-09-21 | Ordered — DKK 408 landed, AliExpress ([A.1](bringup.md)) |
 | 2026-10-01 | Arrived. Potluck verified silicon, security state, bridge chip and pins; backed up factory images; started a 24 h soak (~19:20) |
 | 2026-10-01 | Both `node_bench` roles built in Docker and role-verified; host flash script dry-run checked. No board touched |
+| 2026-10-01 | Transceiver schematic found in the listing: Rs = 10 kΩ (slope control) and 120 Ω termination onboard. Sibling project's 250 kbit/s limit withdrawn; bench stays at 1 Mbps |

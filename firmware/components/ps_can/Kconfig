@@ -21,7 +21,7 @@ menu "ps_can (TWAI transport)"
             setting, not a suit setting. Every node on a segment must agree.
 
             Bench note: the SN65HVD230 modules in docs/bringup.md A.1 run in
-            slope-control mode (Rs reported fixed at 10 kOhm, ~15 V/us, ~100 ns
+            slope-control mode (Rs fixed at 10 kOhm per the module schematic, ~15 V/us, ~100 ns
             loop delay). TI specifies the part to 1 Mbps in that mode, and two
             nodes over 20 cm need ~200 ns of a ~750 ns sample point, so 1 Mbps
             is in spec. If bus_errors climb anyway, 250000 is the fallback:
