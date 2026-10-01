@@ -142,7 +142,8 @@ LIMB (`idf.py menuconfig` → *Powersuit bench node*).
 ## A.1 Shopping list
 
 **Ordered 2026-09-21 — DKK 408 landed** (DKK 296 goods, DKK 136 Danish import
-charges, DKK 23.50 duty reduction), AliExpress Choice, expected mid-October 2026.
+charges, DKK 23.50 duty reduction), AliExpress Choice; arrived 2026-10-01. The bench's current state — board
+register, what is verified, what is not — is kept in [`bench-log.md`](bench-log.md).
 An EU-supplier comparison was run and rejected: jumper wire at four times the
 price, and no EU listing carried a two-USB-C-socket N16R8 board at all.
 
@@ -154,11 +155,29 @@ serve that project too; **[sibling]** is not needed for anything in this repo.
 | 1 | ESP32-S3-DevKitC-1 **N16R8**, headers pre-soldered, two **USB-C** sockets | 3 | €7.73 ea | **[both]** Two is the minimum here — one orchestrator, one limb. The third is a spare and makes the sibling project's beacon comparison meaningful. N16R8 is what `node_bench` assumes (16 MB flash, 8 MB Octal PSRAM), and the sibling's memory figures are all attributed to it. |
 | 2 | SN65HVD230 CAN transceiver module | 2 | €2.17 ea | **[both]** Two is deliberate — see the termination note. |
 | 3 | Dupont jumper, **female-female, 20 cm**, 40-way | 1 | €2.31 | **[both]** 11 wires for the wiring in A.4. 20 cm is set by the board-to-board ground tie, the longest run on the bench. |
-| 4 | CP2102 USB-TTL adapter, **3.3 V**, USB-A dongle | 1 | €2.46 | **[sibling]** Reaches that project's UART1 frame link. Nothing here needs it — the DevKitC-1's onboard bridge carries this console. |
+| 4 | CP2102 USB-TTL adapter, **3.3 V**, USB-A dongle | 1 | €2.46 | **[sibling]** Reaches that project's UART1 frame link. Nothing here needs it — the DevKitC-1's onboard bridge carries this console. It is the only part in the order that needs a driver (Silicon Labs CP210x). |
 | 5 | 6-port USB mains charger | 1 | €7.75 | Powers any board whose log you do not need to read — see A.4c. |
 
 No resistors and no LEDs: the DevKitC-1 carries an addressable RGB LED, and
 `node_bench` uses it to show safety state.
+
+**What actually arrived** (verified 2026-10-01 by the sibling project on these
+exact units):
+
+- **Real N16R8, despite the clone listing.** No Espressif seal and recycled
+  marketing copy, but esptool reports ESP32-S3 QFN56 rev v0.2, dual core at
+  240 MHz, 16 MB flash, 8 MB PSRAM. Secure Boot and Flash Encryption are off and
+  every key block is empty, so the boards can be reflashed indefinitely.
+- **The onboard USB-UART bridge is a WCH CH343** (VID 1A86, PID 55D3), not a
+  CP2102. Windows 11 already carried its driver; nothing needed installing. Each
+  CH343 reports a unique serial number, so three identical boards are told apart
+  in Device Manager without the unplug-and-see-what-vanishes trick.
+- **The sockets are silkscreened `COM` and `USB`**, not `UART`/`USB`. `COM` is the
+  CH343, wired to UART0 on GPIO43/44; `USB` is the chip's native USB.
+- **DTR/RTS auto-reset is wired.** Flashing needs no buttons held and can be
+  fully scripted.
+- The A.2 pin table matches the real silkscreen. GPIO35-37 *are* broken out on
+  the header as if they were ordinary GPIOs; on an R8 part they are the PSRAM.
 
 **Deliberately not bought, and why:**
 
@@ -236,6 +255,12 @@ If you would rather have the board tell you, enable **LED probe at boot**. It
 drives GPIO38 and GPIO48 in turn for two seconds each and announces which is
 active over serial; whichever lights your LED is your revision. Turn it off
 again afterwards.
+
+**A lit LED is not proof the app is driving it.** A WS2812 latches its last colour
+and holds it indefinitely, so a board flashed with firmware that never touches
+the LED keeps whatever the factory demo was showing when flashing interrupted it
+— one of these units sat blue and another green for days. A colour that never
+changes means nothing is writing to the LED, not that anything is broken.
 
 ## A.4 Wiring
 
@@ -323,6 +348,12 @@ Two boards flashed with silently identical firmware is a genuinely confusing
 way to start a bench session: neither board beats, both sit amber, and it looks
 exactly like a wiring fault.
 
+**`firmware/tools/build_bench.sh` does all of this for you:** it deletes both
+build directories, builds both roles in Docker from fresh sdkconfigs, and fails
+unless each sdkconfig holds the role it should *and* the two app images differ.
+The full log goes to `.verify-logs/bench_build.log`; only the verdict is printed.
+It never starts Docker — if Docker is not running it says so and stops.
+
 (Credit: diagnosed on a sibling ESP32-S3 project after an int override was seen
 reverting between runs.)
 
@@ -344,15 +375,62 @@ Two limits on that:
   not a fault you will enjoy diagnosing.
 
 Both sockets are USB-C and visually identical; only the silkscreen distinguishes
-`UART` from `USB`. Mark the UART side of each board at unboxing — you will plug
-these in hundreds of times, and "wrong socket" looks exactly like "dead board".
+`COM` from `USB`. Mark them at unboxing — you will plug these in hundreds of
+times, and "wrong socket" looks exactly like "dead board".
+
+In this repo both sockets work, deliberately. The S3's USB PHY interferes with
+Wi-Fi, and ESP-IDF's `CONFIG_ESP_PHY_ENABLE_USB` trades one for the other. The
+sibling project turns it off because its purpose is clean RF measurement, which
+kills its native USB port. Powersuit leaves it at the default: `COM` carries the
+primary console on UART0, and `USB` carries a secondary USB-Serial-JTAG console
+plus on-chip JTAG — breakpoints and single-stepping with no probe. `node_bench`
+uses no radio at all, so there is nothing to give up. Keep it that way unless a
+node genuinely needs better Wi-Fi.
+
+## A.4d Flashing from Windows when the build ran in Docker
+
+`idf.py flash` needs the serial port, and Docker Desktop on Windows cannot pass a
+COM port into a container. So build in Docker and flash from the host. The build
+directories sit beside the app sources on the bind mount, so the host can see
+them — a named-volume `-B` would hide them from Windows.
+
+With the board on its **`COM`** socket:
+
+```powershell
+powershell -File firmware/tools/flash_bench.ps1 -Role limb -Port COM4 -Monitor
+powershell -File firmware/tools/flash_bench.ps1 -Role orch -Port COM3 -DryRun
+```
+
+The script refuses to flash unless `build_<role>/sdkconfig` holds the role you
+named, finds the newest ESP-IDF Python environment under
+`%USERPROFILE%\.espressif\python_env` (override with `PS_IDF_PYTHON`), and
+translates the build's `flasher_args.json` into esptool 5's syntax — ESP-IDF 5.5
+writes underscore options such as `--flash_mode`, which esptool 5 spells with
+hyphens. `-Monitor` follows with esp-idf-monitor, which uses the ELF to decode
+panic backtraces; exit with `Ctrl+]`. `-DryRun` prints the commands and opens no
+port. Device Manager shows each CH343's serial number, which identifies the board
+behind a COM number.
+
+The manual equivalent, from inside the build directory:
+
+```powershell
+& $py -m esptool --chip esp32s3 -p COM4 -b 460800 write-flash '@flash_args'
+& $py -m esp_idf_monitor -p COM4 node_bench.elf
+```
+
+Quote `'@flash_args'` — a bare `@` is PowerShell's splatting operator. esptool 5
+accepts `@file` argument files (checked) and warns on the file's underscore options.
+
+*Not yet run against a board.* The tools, their versions, `@file` support and the
+script's dry run are checked; flashing these units from the host is confirmed on
+the sibling project. A Docker-built `node_bench` going onto one of them is not.
 
 ## A.5 What you should see
 
-```bash
-idf.py -p COM3 flash monitor     # board A, configured as ORCHESTRATOR
-idf.py -p COM4 flash monitor     # board B, configured as LIMB
-```
+Flash each board from its own build directory as in A.4d — `build_orch/` to
+the orchestrator, `build_limb/` to the limb — then read
+`grep PS_BENCH_IS_ORCH build_*/sdkconfig` once more before powering both. Two
+boards with the same role look exactly like a wiring fault.
 
 1. **Limb alone, orchestrator off.** LED amber (STANDBY). It will never arm — no
    heartbeat, no authority. That is correct, and it is the first confirmation the

@@ -62,6 +62,24 @@ Firmware (substitute the app; `-B` on a named volume because NTFS bind mounts ar
 docker run --rm -v "$PWD:/ws" -v ps_fw_build:/builds -v ps_ccache:/root/.ccache -w /ws/firmware/apps/node_limb -e IDF_CCACHE_ENABLE=1 espressif/idf:v5.5.5 bash -c "git config --global --add safe.directory '*'; idf.py -B /builds/node_limb build"
 ```
 
+Flashing cannot happen from that container: Docker Desktop on Windows has no
+access to COM ports. Build in Docker, flash from the host (`docs/bringup.md` A.4d).
+For the two-board bench:
+
+```bash
+bash firmware/tools/build_bench.sh                                       # both roles, verified
+powershell -File firmware/tools/flash_bench.ps1 -Role limb -Port COM4    # -DryRun opens no port
+```
+
+**Never launch Docker Desktop from a script or a command.** On this PC it
+crash-loops on stranded socket files when started carelessly. If `docker info`
+fails, say so and stop; repo scripts only check for it.
+
+**The bench boards are shared** with a sibling project (Potluck) that runs 24-hour
+soaks on them. Before flashing, unplugging or resetting a board, read
+`docs/bench-log.md`; during a soak, leave every `python.exe` alone too. Building
+images touches no board and is always fine.
+
 ## Invariants — do not break these
 
 **The heartbeat is a dead-man switch.** Node 8 alone emits it, at 100 Hz. Any actuating node

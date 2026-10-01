@@ -21,7 +21,7 @@ the node list, and each app's `board_*.h` for what hangs off it.
 
 | Tier | What it is | Actuators | Rough total |
 |------|-----------|-----------|-------------|
-| **A — Bench** | Three boards proving the network and safety logic. **Ordered 2026-09-21.** | none | **DKK 408 landed (~€55)** |
+| **A — Bench** | Three boards proving the network and safety logic. **Ordered 2026-09-21, arrived 2026-10-01.** | none | **DKK 408 landed (~€55)** |
 | **B — Cosplay** | Full nine-node electronics, articulated shell, non-load-bearing. Lights, sound, HUD, servo-driven panels. | hobby servos | **~€700–1,100** |
 | **C — Spec** | The torque figures actually written in `board_limb.h`. A machine that moves a human. | 8 robot joints | **~€12,000–35,000+** |
 

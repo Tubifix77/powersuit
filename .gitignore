@@ -9,6 +9,7 @@ dist/
 
 # colcon / ROS 2
 build/
+build_*/
 install/
 log/
 

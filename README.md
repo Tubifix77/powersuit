@@ -11,8 +11,8 @@ and a GPU cloud service reachable over 5G.
 > Every tier compiles and its logic is tested — 253 Python tests, 11 C suites under
 > `-Werror`, four firmware images, a ROS 2 workspace, and ten end-to-end scenarios
 > against a simulated suit. Nothing below the driver layer has touched silicon.
-> Bench hardware was ordered on 2026-09-21 and is expected mid-October 2026;
-> [Appendix A](docs/bringup.md) of the bring-up guide is what it proves first.
+> Bench hardware arrived on 2026-10-01 and is verified as genuine ESP32-S3 N16R8;
+> the first Powersuit flash is pending. Current state: [`docs/bench-log.md`](docs/bench-log.md).
 > See [Verified vs unproven](#verified-vs-unproven).
 
 The system specification is [`ARCHITECTURE.md`](ARCHITECTURE.md). The *normative engineering
@@ -20,7 +20,8 @@ contract* — the one every node actually codes against — is [`docs/network-ma
 with safety semantics in [`docs/safety.md`](docs/safety.md) and the cloud link in
 [`docs/link-protocol.md`](docs/link-protocol.md). When hardware arrives,
 [`docs/bringup.md`](docs/bringup.md) is the order to prove it in, and
-[`docs/hardware-bom.md`](docs/hardware-bom.md) is what it costs. Where reality forced a departure from the
+[`docs/hardware-bom.md`](docs/hardware-bom.md) is what it costs, and
+[`docs/bench-log.md`](docs/bench-log.md) records what the physical bench is and what has been proven on it. Where reality forced a departure from the
 original specification, it is recorded in [network-map §12](docs/network-map.md#12-deviations-from-architecturemd)
 rather than quietly implemented.
 
@@ -186,7 +187,10 @@ ros2 launch suit_bringup sim.launch.py mock_port:=9700
 - **Node 9**: `docker compose -f cloud/docker-compose.yml up app`. The default engine is a
   deterministic mock. Point it at a real model with the `ollama` profile (CPU, no account
   needed) or the `gpu` profile (vLLM), both through the same OpenAI-compatible adapter.
-- **Nodes 1–7**: `idf.py flash` per app; see the per-app board headers for the bench pinouts.
+- **Nodes 1–7**: built in Docker, flashed from the host — Docker Desktop on Windows
+  cannot reach a COM port. For the two-board bench that is
+  `bash firmware/tools/build_bench.sh`, then `firmware/tools/flash_bench.ps1`
+  ([bringup A.4d](docs/bringup.md)). The per-app board headers hold the bench pinouts.
 
 ## Verified vs unproven
 
