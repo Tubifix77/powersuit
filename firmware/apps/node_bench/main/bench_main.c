@@ -36,7 +36,11 @@
 
 static const char *TAG = "bench";
 
-#if CONFIG_PS_BENCH_LED_V11
+#if CONFIG_PS_BENCH_LED_BOTH
+#define BENCH_LED_GPIO  38
+#define BENCH_LED_GPIO2 48
+#define BENCH_LED_REV   "v1.0 or v1.1"
+#elif CONFIG_PS_BENCH_LED_V11
 #define BENCH_LED_GPIO 38
 #define BENCH_LED_REV  "v1.1"
 #elif CONFIG_PS_BENCH_LED_V10
@@ -48,6 +52,9 @@ static const char *TAG = "bench";
 #else
 #define BENCH_LED_GPIO (-1)
 #define BENCH_LED_REV  "none"
+#endif
+#ifndef BENCH_LED_GPIO2
+#define BENCH_LED_GPIO2 (-1)   /* only the either-revision default drives two */
 #endif
 
 /* An unselected Kconfig bool is undefined, not 0 — fine in #if, an undeclared
@@ -61,17 +68,20 @@ static const char *TAG = "bench";
 #endif
 
 static led_strip_handle_t s_led;
+static led_strip_handle_t s_led2;   /* second candidate pin, either-revision mode */
 static ps_can_handle_t s_can;
 
 /* ---------------- LED ---------------- */
 
 static void led_set(uint8_t r, uint8_t g, uint8_t b)
 {
-    if (s_led == NULL) {
-        return;
+    led_strip_handle_t leds[] = { s_led, s_led2 };
+    for (unsigned i = 0; i < sizeof(leds) / sizeof(leds[0]); i++) {
+        if (leds[i] != NULL) {
+            led_strip_set_pixel(leds[i], 0, r, g, b);
+            led_strip_refresh(leds[i]);
+        }
     }
-    led_strip_set_pixel(s_led, 0, r, g, b);
-    led_strip_refresh(s_led);
 }
 
 static esp_err_t led_open(int gpio, led_strip_handle_t *out)
@@ -261,12 +271,19 @@ void app_main(void)
     ESP_LOGI(TAG, "TWAI      : TX=GPIO%d RX=GPIO%d @ %d bit/s",
              CONFIG_PS_BENCH_CAN_TX_GPIO, CONFIG_PS_BENCH_CAN_RX_GPIO,
              CONFIG_PS_CAN_BITRATE);
+#if BENCH_LED_GPIO2 >= 0
+    ESP_LOGI(TAG, "RGB LED   : GPIO%d and GPIO%d (DevKitC-1 %s: whichever has the LED)",
+             BENCH_LED_GPIO, BENCH_LED_GPIO2, BENCH_LED_REV);
+    ESP_LOGW(TAG, "if the LED stays dark with both pins driven, it is not the "
+                  "revision: the serial log below still shows every transition");
+#else
     ESP_LOGI(TAG, "RGB LED   : GPIO%d (DevKitC-1 %s)", BENCH_LED_GPIO, BENCH_LED_REV);
     /* Said loudly and unconditionally: a wrong revision is a dark LED, which
      * is indistinguishable from a broken driver if nothing tells you. */
     ESP_LOGW(TAG, "if the LED stays dark, you have the OTHER board revision — "
                   "run 'idf.py menuconfig' -> Powersuit bench node -> DevKitC-1 "
                   "revision, or enable LED PROBE to let the board tell you");
+#endif
 
 #if CONFIG_PS_BENCH_LED_PROBE
     led_probe();
@@ -280,6 +297,14 @@ void app_main(void)
         s_led = NULL;
     } else {
         led_strip_clear(s_led);
+    }
+#endif
+#if BENCH_LED_GPIO2 >= 0
+    if (led_open(BENCH_LED_GPIO2, &s_led2) != ESP_OK) {
+        ESP_LOGE(TAG, "RGB LED on GPIO%d failed to initialise", BENCH_LED_GPIO2);
+        s_led2 = NULL;
+    } else {
+        led_strip_clear(s_led2);
     }
 #endif
     paint_state(PS_STATE_BOOT, 0);

@@ -8,8 +8,8 @@ edge nodes on two isolated CAN buses, a Raspberry Pi 5 class orchestrator runnin
 and a GPU cloud service reachable over 5G.
 
 > **Status: builds and simulates; has never run on hardware.**
-> Every tier compiles and its logic is tested — 253 Python tests, 11 C suites under
-> `-Werror`, four firmware images, a ROS 2 workspace, and ten end-to-end scenarios
+> Every tier compiles and its logic is tested — 253 Python tests, 12 C suites under
+> `-Werror`, five firmware images, a ROS 2 workspace, and ten end-to-end scenarios
 > against a simulated suit. Nothing below the driver layer has touched silicon.
 > Bench hardware arrived on 2026-10-01 and is verified as genuine ESP32-S3 N16R8;
 > the first Powersuit flash is pending. Current state: [`docs/bench-log.md`](docs/bench-log.md).
@@ -204,8 +204,8 @@ machine that applies force to a human body.
 | Protocol contract | 85 tests; the C and Python implementations are locked together by generated vectors |
 | Cloud (Node 9) | 73 tests against the real server over a real WebSocket |
 | Orchestrator (Node 8) | 74 Python tests, 3 C++ gtest suites, full `colcon build` |
-| Pure C firmware logic | 11 suites under `-Wall -Wextra -Werror` — FOC maths, Mahony filter, safety state machine, CAN routing, ADPCM |
-| Firmware images | All four apps build for ESP32-S3/P4, with and without micro-ROS |
+| Pure C firmware logic | 12 suites under `-Wall -Wextra -Werror` — FOC maths, Mahony filter, safety state machine, CAN routing, CAN transmit order, ADPCM |
+| Firmware images | All four suit apps build for ESP32-S3/P4, with and without micro-ROS, plus the `node_bench` image for the two-board bench |
 | Whole-suit behaviour | 10 scenarios: watchdog trip and re-arm timing, e-stop propagation and replay rejection, SPI corruption recovery, voice round-trip, link failover, local-beats-cloud ordering |
 | On-target (QEMU) | 27 checks on emulated ESP32-S3: packed-struct access on Xtensa, single-precision FPU, dual-core scheduling, stack headroom, watchdog timing against real elapsed time |
 | Static analysis | `cppcheck` clean |

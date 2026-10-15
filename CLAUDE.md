@@ -92,6 +92,12 @@ XRCE is ~70 CAN frames; a single limb at 100 Hz would exceed a whole 1 Mbps bus.
 synthesises the ROS messages. Adding a high-rate ROS publisher on an edge node breaks the bus
 budget in `docs/network-map.md` §10.
 
+**SAFETY first starts inside the node.** The TWAI driver's transmit queue is FIFO, so
+arbitration alone cannot put a heartbeat or ESTOP ahead of a node's own telemetry.
+`ps_can` holds pending frames in class order and gives the driver one at a time
+(`ps_can_txq.h`). Do not call `twai_node_transmit()` anywhere else, and do not raise
+the driver's `tx_queue_depth` — either reintroduces the inversion.
+
 **One actuation gate.** Every torque or servo write goes through `ps_safety_can_actuate()`;
 callers do not each check state. `ps_focdrv_disable()`/`brake()` are always permitted — they
 are the safe directions.
@@ -106,7 +112,7 @@ comparator latching the gate; firmware only observes, timestamps and re-arms. Do
 this into a software check. Likewise `BMSF_COMP_ARMED` is a *health* bit — set means the
 comparator is armed and the pack is protected.
 
-**Pure C stays pure.** `foc_math.c`, `pid.c`, `imu_mahony.c`, `ps_safety_core.c`,
+**Pure C stays pure.** `foc_math.c`, `pid.c`, `imu_mahony.c`, `ps_safety_core.c`, `ps_can_txq.c`,
 `ps_router.c`, `audio_pkt.c`, `energy_gate.c` must not include any FreeRTOS or ESP header —
 they are compiled on the host under `-Wall -Wextra -Werror` by `firmware/tests/host`.
 

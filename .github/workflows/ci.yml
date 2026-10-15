@@ -97,6 +97,7 @@ jobs:
           - { app: node_flight, target: esp32s3 }
           - { app: node_helmet, target: esp32s3 }
           - { app: node_chest_hub, target: esp32p4 }
+          - { app: node_bench, target: esp32s3 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4

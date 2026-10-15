@@ -23,12 +23,14 @@ add_library(ps_pure STATIC
     "${FW}/components/ps_router/src/ps_router.c"
     "${FW}/components/ps_audio/src/audio_pkt.c"
     "${FW}/components/ps_audio/src/energy_gate.c"
+    "${FW}/components/ps_can/src/ps_can_txq.c"
 )
 target_include_directories(ps_pure PUBLIC
     "${FW}/components/ps_ctl/include"
     "${FW}/components/ps_safety/include"
     "${FW}/components/ps_router/include"
     "${FW}/components/ps_audio/include"
+    "${FW}/components/ps_can/include"
 )
 target_link_libraries(ps_pure PUBLIC powersuit_proto)
 target_compile_options(ps_pure PRIVATE -Wall -Wextra -Werror)
@@ -45,6 +47,7 @@ set(PS_HOST_TESTS
     test_router
     test_audio_pkt
     test_energy_gate
+    test_can_txq
 )
 
 foreach(t IN LISTS PS_HOST_TESTS)

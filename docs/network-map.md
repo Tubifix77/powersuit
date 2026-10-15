@@ -71,6 +71,15 @@ Classic CAN 2.0B extended frames only (TWAI has no CAN-FD). Both buses run 1 Mbp
 | AUDIO   | 4 | ADPCM voice frames                        |
 | MGMT    | 5 | time sync, flow control, logs, versions   |
 
+**Priority starts inside the node.** Arbitration only ranks frames already competing
+for the bus, and the TWAI driver feeds its controller first-in, first-out, so a SAFETY
+frame queued behind a node's own telemetry would not compete at all until that
+telemetry had gone. Every node therefore transmits its *own* pending frames in class
+order too — SAFETY first, FIFO within a class so XRCE streams and TELEM/AUDIO sequence
+numbers keep their order — and hands the driver one frame at a time
+(`firmware/components/ps_can/include/ps_can_txq.h`). Frames queued when a node goes
+bus-off are dropped, not sent after recovery: a late heartbeat is a replayed one.
+
 **Rate policy (load-bearing):** any data produced faster than 20 Hz MUST use packed TELEM
 frames; the Node 8 bridge synthesizes the corresponding ROS messages. XRCE carries only
 low-rate topics, parameters, and services. Rationale: one `sensor_msgs/Imu` over XRCE is

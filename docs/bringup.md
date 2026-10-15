@@ -243,18 +243,21 @@ why it moved. Both revisions are still sold and listings rarely say which you
 are getting.
 
 This matters more than it sounds: a wrong guess is a dark LED, which looks
-exactly like a broken driver. So the pin is a menuconfig choice, never a
-literal, and the firmware announces it at boot:
+exactly like a broken driver. So **by default `node_bench` drives both pins** with
+the same colour: whichever carries the LED lights it, and the other is an ordinary
+header pin with nothing on it. The sibling project's firmware does exactly this on
+these boards, and the LED works (see [bench-log.md](bench-log.md)). The boot banner
+says so:
 
 ```
-I bench: RGB LED   : GPIO38 (DevKitC-1 v1.1)
-W bench: if the LED stays dark, you have the OTHER board revision — ...
+I bench: RGB LED   : GPIO38 and GPIO48 (DevKitC-1 v1.0 or v1.1: whichever has the LED)
 ```
 
-If you would rather have the board tell you, enable **LED probe at boot**. It
-drives GPIO38 and GPIO48 in turn for two seconds each and announces which is
-active over serial; whichever lights your LED is your revision. Turn it off
-again afterwards.
+Which revision these units are is still not established, and it does not need to be.
+If you want to know, or something else is wired to GPIO38 or GPIO48, pick a single pin
+in menuconfig (*Powersuit bench node → DevKitC-1 revision*), or enable **LED probe at
+boot**: it drives GPIO38 and GPIO48 in turn for two seconds each and announces which
+is active over serial.
 
 **A lit LED is not proof the app is driving it.** A WS2812 latches its last colour
 and holds it indefinitely, so a board flashed with firmware that never touches
@@ -265,7 +268,9 @@ changes means nothing is writing to the LED, not that anything is broken.
 ## A.4 Wiring
 
 The module ordered (EGBO SN65HVD230 / VP230) carries a 4-pin male header
-labelled **3.3V / GND / RX / TX** top to bottom, and brings CANH and CANL out
+labelled **3.3V / GND / RX / TX** (read from the other end, the same header runs
+TX / RX / GND / 3.3V — **identify every pin by its printed label, never by counting
+positions**, on the module and on the DevKit alike), and brings CANH and CANL out
 **twice, in parallel** — on a 2-pin header and on a blue screw terminal. Every
 connector on it is male pins, which is why the whole bench wires with
 female-female jumpers and no breadboard. There is no RS pin on the header;
@@ -432,6 +437,17 @@ the orchestrator, `build_limb/` to the limb — then read
 `grep PS_BENCH_IS_ORCH build_*/sdkconfig` once more before powering both. Two
 boards with the same role look exactly like a wiring fault.
 
+**Opening a board's serial console resets it.** The DTR/RTS auto-reset wiring that
+makes flashing button-free also reboots the board whenever a terminal opens the port
+with ordinary settings. That is why `-Monitor` shows the boot log — and why you must
+**not** open the orchestrator's console in the middle of step 3: it reboots the
+orchestrator, the beats stop, and the limb trips for the wrong reason, which looks
+exactly like the dead-man switch working. To watch a board that is already running:
+
+```powershell
+& $py -m esp_idf_monitor --no-reset -p COM3 node_bench.elf
+```
+
 1. **Limb alone, orchestrator off.** LED amber (STANDBY). It will never arm — no
    heartbeat, no authority. That is correct, and it is the first confirmation the
    safety state machine works.
@@ -449,17 +465,20 @@ If step 1 shows a dark LED rather than amber, read A.3 before suspecting the
 driver. If step 2 never happens, check `rx_frames` in the limb's 2-second status
 line: zero means wiring, non-zero means something else.
 
-**If `bus_errors` climb with wiring you have checked twice**, rebuild both roles at
-the fallback rate and flash both boards again:
+**If `bus_errors` climb with wiring you have checked twice**, step the rate down,
+rebuild both roles and flash both boards again:
 
 ```bash
-BENCH_CAN_BITRATE=250000 bash firmware/tools/build_bench.sh
+BENCH_CAN_BITRATE=500000 bash firmware/tools/build_bench.sh    # measured clean on these modules
+BENCH_CAN_BITRATE=250000 bash firmware/tools/build_bench.sh    # last resort
 ```
 
-The transceivers run in slope-control mode, and although TI specifies them to
-1 Mbps in that mode (see [bench-log.md](bench-log.md)), 250 kbit/s removes the
-question entirely: the dead-man test needs about 100 frames a second, which is
-under 7% of the bus even there. Each board prints its rate in the boot banner
-(`TWAI : ... @ 250000 bit/s`), and **both must match** — a rate mismatch between
+500 kbit/s first, because it is the one rate with evidence behind it: the sibling
+project ran these exact transceivers and boards there with zero bit, form or stuff
+errors under a 3,000 frames/s flood. 1 Mbps is in spec per TI's datasheet (see
+[bench-log.md](bench-log.md)) but has not run on this bench yet; 250 kbit/s has not
+run either. The dead-man test needs about 100 frames a second, a few percent of the
+bus at any of them. Each board prints its rate in the boot banner
+(`TWAI : ... @ 500000 bit/s`), and **both must match** — a rate mismatch between
 the two boards looks exactly like a wiring fault. Go back to 1 Mbps afterwards;
 it is the contract rate, and the bus budget in `network-map.md` §10 assumes it.

@@ -24,17 +24,21 @@ menu "Powersuit bench node"
 
     choice PS_BENCH_LED_REV
         prompt "DevKitC-1 revision (sets the onboard RGB LED pin)"
-        default PS_BENCH_LED_V11
+        default PS_BENCH_LED_BOTH
         help
             Espressif moved the onboard WS2812 between board revisions:
             GPIO48 on v1.0, GPIO38 on v1.1. GPIO47/48 are fed from the 1.8 V
             VDD_SPI rail used by PSRAM, which is why it moved.
 
-            Listings frequently do not say which revision they ship. If the LED
-            stays dark, you almost certainly have the other one — the firmware
-            prints the configured pin at boot and says so. Use LED PROBE below
-            if you want the board to tell you.
+            Listings frequently do not say which revision they ship, so the
+            default drives BOTH pins with the same colour: whichever carries the
+            LED lights it, and the other is a plain header pin with nothing on
+            it. Verified on this bench's boards by the sibling project, whose
+            firmware does the same (docs/bench-log.md). Pick a single pin only
+            if something else is wired to GPIO38 or GPIO48.
 
+        config PS_BENCH_LED_BOTH
+            bool "Either revision — drive GPIO38 and GPIO48"
         config PS_BENCH_LED_V11
             bool "v1.1 — GPIO38"
         config PS_BENCH_LED_V10

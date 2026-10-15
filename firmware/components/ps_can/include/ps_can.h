@@ -42,7 +42,7 @@ typedef struct {
     int      rx_gpio;
     uint32_t bitrate;       /* contract: 1000000 */
     uint8_t  node_id;       /* accept dst == node_id or broadcast; 0 = promiscuous (gateway) */
-    size_t   tx_queue_len;  /* 0 = default (32) */
+    size_t   tx_queue_len;  /* unused: 16 frames, held in class order (ps_can_txq.h) */
     size_t   rx_queue_len;  /* 0 = default (64) */
 } ps_can_config_t;
 
@@ -51,9 +51,12 @@ typedef struct ps_can_ctx *ps_can_handle_t;
 esp_err_t ps_can_open(const ps_can_config_t *cfg, ps_can_handle_t *out);
 esp_err_t ps_can_close(ps_can_handle_t h);
 
-/* Queue a frame for transmission. Returns ESP_ERR_TIMEOUT when the TX queue stays
- * full for `timeout` ticks (callers on the SAFETY plane use portMAX_DELAY-free
- * small timeouts and escalate). */
+/* Queue a frame for transmission. A node's frames leave in class order — SAFETY
+ * first, FIFO within a class — not in the order they were queued (ps_can_txq.h).
+ * Returns ESP_ERR_TIMEOUT when all 16 slots stay taken for `timeout` ticks (callers
+ * on the SAFETY plane use portMAX_DELAY-free small timeouts and escalate), and
+ * ESP_ERR_INVALID_STATE during bus-off: nothing is held to be sent late. A frame
+ * accepted here but never sent (dropped at bus-off) counts in tx_timeouts. */
 esp_err_t ps_can_send(ps_can_handle_t h, const ps_can_frame_t *frame, TickType_t timeout);
 
 /* At most one callback per class; passing NULL unregisters. Frames whose class has

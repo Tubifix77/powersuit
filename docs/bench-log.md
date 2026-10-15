@@ -134,6 +134,29 @@ band, not firmware faults — but treat that as a hypothesis per counter, never 
 blanket excuse. Ask whether RF can physically move the counter in question. The
 CAN bench is unaffected: it is wired.
 
+## Lessons from the sibling project, and what Powersuit did about them
+
+Potluck has run these boards continuously since they arrived. Its bench datasheet
+(`D:\Projects\potluck\bench\esp32-s3-bench-datasheet.md`, every row tagged
+measured / owner / seller / datasheet) and its CAN session log are the sources. Read
+2026-10-15, before Powersuit's first flash.
+
+| Lesson | Applies to | Powersuit's response |
+|---|---|---|
+| **The TWAI driver's transmit queue is FIFO.** A high-priority frame queued behind the same node's traffic took 2.5–5.5 ms to leave, against ~0.3 ms of wire time; it never lost arbitration because it never reached it. Fixed there by transmitting one frame at a time in priority order: 335–683 µs under a 3,000 frames/s flood | every node; the hub most | **Confirmed in IDF 5.5.5's source** (`esp_twai_onchip.c`: `tx_mount_queue` is a FreeRTOS queue). `ps_can` now holds pending frames in class order and gives the driver one at a time (`ps_can_txq`, host-tested). Recorded in `network-map.md` §2. *Unproven on silicon.* |
+| **CAN runs clean at 500 kbit/s** on these modules, straight wiring, ~20 cm, no module-to-module ground (boards on one PC) | `node_bench` | 500 kbit/s is now the first fallback, ahead of 250 ([bringup.md](bringup.md) A.5). 1 Mbps remains unrun |
+| **The RGB LED lights when GPIO38 and GPIO48 are both driven** | `node_bench` | Now the default; the revision question no longer blocks anything (A.3) |
+| **Opening the console port resets the board** (pyserial defaults toggle DTR/RTS; set both false *before* `open()` to avoid it) | A.5 | Documented: never open the orchestrator's console mid-test; `esp_idf_monitor --no-reset` to watch a running board |
+| **Identify pins by printed label**, never position: the transceiver header reads TX/RX/GND/3.3V from one end and 3.3V/GND/RX/TX from the other | A.4 | A.4 now says so |
+| **The receive ISR queue overflowed** 220 times in 881,583 frames at ~3,000 frames/s (128 entries, drained too slowly) | `node_chest_hub` | The hub uses the same 128-entry queue, and bus 1's worst case is ~2,800 frames/s (`network-map.md` §10). Not changed blind: watch `rx_dropped` on the hub at bring-up step 3, and drain faster or add an acceptance filter if it moves |
+| A lone CAN node cannot transmit (every frame needs an ACK); use loopback with RX on the TX pin | bring-up step 2 | Already in `bringup.md` §2 |
+| **ESP-NOW wedges for good** (`ESP_ERR_ESPNOW_NO_MEM` after 2.5–5 min) with static Wi-Fi TX buffers **and** AMPDU on; `SPIRAM_TRY_ALLOCATE_WIFI_LWIP` forces static buffers | `node_helmet` | Checked: the helmet uses dynamic TX buffers, so it is not in the trap. Do not enable Wi-Fi/lwIP buffers in PSRAM without turning AMPDU off |
+| A Wi-Fi station hunting for a router it cannot find scans every channel and drops ESP-NOW peers; adjacent channels leak at desk range | `node_helmet` | The helmet does not join a router. Recorded for if it ever does |
+| `esp_random()` is truly random only while the radio runs | any key or nonce | Powersuit calls `esp_random` nowhere; recorded for when something does |
+| A small power bank was too unstable for a board; mains and PC ports were fine | power | Use the charger or the PC |
+| The CP2102 dongle back-powers through its signal lines if left wired to a board while unplugged | Potluck only | Not used by Powersuit |
+| Console at 115200; reading at the wrong rate shows nothing at all | A.4d | `node_bench` uses 115200, which esp-idf-monitor defaults to |
+
 ## Not yet verified
 
 - **RGB LED pin** — GPIO38 (v1.1) or GPIO48 (v1.0). Potluck's firmware never
@@ -153,4 +176,5 @@ CAN bench is unaffected: it is wired.
 | 2026-09-21 | Ordered — DKK 408 landed, AliExpress ([A.1](bringup.md)) |
 | 2026-10-01 | Arrived. Potluck verified silicon, security state, bridge chip and pins; backed up factory images; started a 24 h soak (~19:20) |
 | 2026-10-01 | Both `node_bench` roles built in Docker and role-verified; host flash script dry-run checked. No board touched |
+| 2026-10-15 | Read the sibling project's two weeks of bench evidence. `ps_can` now transmits in class order (TWAI's FIFO), `node_bench` drives both LED pins and builds in CI, 500 kbit/s is the first fallback. No board touched |
 | 2026-10-01 | Transceiver schematic found in the listing: Rs = 10 kΩ (slope control) and 120 Ω termination onboard. Sibling project's 250 kbit/s limit withdrawn; bench stays at 1 Mbps |
