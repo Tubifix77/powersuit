@@ -4,15 +4,24 @@ The state of the physical bench: what hardware exists, what has been proven on
 it, and what has not. [`bringup.md`](bringup.md) is the *procedure*; this file is
 the *record*. Update it when something is verified, not when it is planned.
 
-## Current status — 2026-10-01
+## Current status — 2026-10-16
 
 | | |
 |---|---|
 | Hardware | **Arrived.** Verified on the real units by the sibling project (Potluck). |
-| Boards right now | **In use by Potluck** — a 24 h unattended soak, ending ~19:20 on 2026-10-02 |
+| Boards right now | **In use by Potluck.** All three on the PC's USB ports; the CP2102 on board A and the PC |
+| CAN | **No transceivers attached.** They were wired to B and C for Potluck's CAN tests, then removed because they coupled B and C |
 | Powersuit on silicon | **Nothing yet.** No Powersuit image has been flashed to any board. |
 | Images | **Both `node_bench` roles built and verified** (2026-10-01) — `bash firmware/tools/build_bench.sh` |
-| Next | After the soak: flash with `firmware/tools/flash_bench.ps1` ([A.4d](bringup.md)), then run [A.5](bringup.md) |
+| Next | When Powersuit gets the bench: wire B and C per [A.4](bringup.md), flash with `firmware/tools/flash_bench.ps1` ([A.4d](bringup.md)), run [A.5](bringup.md) |
+
+### Powersuit's bench, when it is Powersuit's turn
+
+**B = orchestrator (COM4), C = limb (COM5).** B and C are the pair Potluck's CAN ran
+clean on, and A keeps the CP2102 so Potluck's frame link is not disturbed. Each of B
+and C gets one transceiver wired per [A.4](bringup.md); A is not involved and needs
+no wires. Flashing `node_bench` replaces Potluck's firmware on B and C; Potluck's own
+builds restore it afterwards, and the factory images are backed up by MAC.
 
 ### Before touching a board
 
@@ -77,8 +86,8 @@ are present and free for TWAI. GPIO35–37 are broken out on the bottom header a
 they were ordinary GPIOs; on an R8 part they are the octal PSRAM and must never be
 used.
 
-**Transceivers** (still sealed, verified from the seller's photos of the exact
-units): 4-pin header `3.3V / GND / RX / TX`; no RS pin exposed; CANH/CANL out
+**Transceivers** (used by the sibling project on B and C at 500 kbit/s, 2026-10-04/05;
+pinout from the seller's photos of the exact units): 4-pin header `3.3V / GND / RX / TX`; no RS pin exposed; CANH/CANL out
 twice in parallel, on a 2-pin header and a screw terminal.
 
 **Transceiver schematic.** The seller's listing for these exact units includes
@@ -176,5 +185,6 @@ measured / owner / seller / datasheet) and its CAN session log are the sources. 
 | 2026-09-21 | Ordered — DKK 408 landed, AliExpress ([A.1](bringup.md)) |
 | 2026-10-01 | Arrived. Potluck verified silicon, security state, bridge chip and pins; backed up factory images; started a 24 h soak (~19:20) |
 | 2026-10-01 | Both `node_bench` roles built in Docker and role-verified; host flash script dry-run checked. No board touched |
+| 2026-10-16 | CAN transceivers removed from B and C (they coupled the two boards); all three boards on the PC's USB, CP2102 on A. Powersuit's turn: B orchestrator, C limb |
 | 2026-10-15 | Read the sibling project's two weeks of bench evidence. `ps_can` now transmits in class order (TWAI's FIFO), `node_bench` drives both LED pins and builds in CI, 500 kbit/s is the first fallback. No board touched |
 | 2026-10-01 | Transceiver schematic found in the listing: Rs = 10 kΩ (slope control) and 120 Ω termination onboard. Sibling project's 250 kbit/s limit withdrawn; bench stays at 1 Mbps |
