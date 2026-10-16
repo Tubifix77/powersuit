@@ -10,7 +10,7 @@ the *record*. Update it when something is verified, not when it is planned.
 |---|---|
 | Hardware | **Arrived.** Verified on the real units by the sibling project (Potluck). |
 | Boards right now | **In use by Potluck.** All three on the PC's USB ports; the CP2102 on board A and the PC |
-| CAN | **No transceivers attached.** They were wired to B and C for Potluck's CAN tests, then removed because they coupled B and C |
+| CAN | **No transceivers attached.** They were wired to B and C for Potluck's CAN tests, then removed so B and C could be placed apart in the room for radio tests. A physical tether, not an electrical problem |
 | Powersuit on silicon | **Nothing yet.** No Powersuit image has been flashed to any board. |
 | Images | **Both `node_bench` roles built and verified** (2026-10-01) — `bash firmware/tools/build_bench.sh` |
 | Next | When Powersuit gets the bench: wire B and C per [A.4](bringup.md), flash with `firmware/tools/flash_bench.ps1` ([A.4d](bringup.md)), run [A.5](bringup.md) |
@@ -20,7 +20,10 @@ the *record*. Update it when something is verified, not when it is planned.
 **B = orchestrator (COM4), C = limb (COM5).** B and C are the pair Potluck's CAN ran
 clean on, and A keeps the CP2102 so Potluck's frame link is not disturbed. Each of B
 and C gets one transceiver wired per [A.4](bringup.md); A is not involved and needs
-no wires. Flashing `node_bench` replaces Potluck's firmware on B and C; Potluck's own
+no wires. The sibling project's drawing of this exact wiring, with the modules as
+they sit on the bench, is `D:\Projects\potluckench\m4-can-wiring.html`: the same
+ten wires as [A.4](bringup.md), plus the board-to-board ground A.4 adds. Flashing
+`node_bench` replaces Potluck's firmware on B and C; Potluck's own
 builds restore it afterwards, and the factory images are backed up by MAC.
 
 ### Before touching a board
@@ -185,6 +188,6 @@ measured / owner / seller / datasheet) and its CAN session log are the sources. 
 | 2026-09-21 | Ordered — DKK 408 landed, AliExpress ([A.1](bringup.md)) |
 | 2026-10-01 | Arrived. Potluck verified silicon, security state, bridge chip and pins; backed up factory images; started a 24 h soak (~19:20) |
 | 2026-10-01 | Both `node_bench` roles built in Docker and role-verified; host flash script dry-run checked. No board touched |
-| 2026-10-16 | CAN transceivers removed from B and C (they coupled the two boards); all three boards on the PC's USB, CP2102 on A. Powersuit's turn: B orchestrator, C limb |
+| 2026-10-16 | CAN transceivers removed from B and C (the wires tethered them, and Potluck's radio tests needed them apart); all three boards on the PC's USB, CP2102 on A. Powersuit's turn: B orchestrator, C limb |
 | 2026-10-15 | Read the sibling project's two weeks of bench evidence. `ps_can` now transmits in class order (TWAI's FIFO), `node_bench` drives both LED pins and builds in CI, 500 kbit/s is the first fallback. No board touched |
 | 2026-10-01 | Transceiver schematic found in the listing: Rs = 10 kΩ (slope control) and 120 Ω termination onboard. Sibling project's 250 kbit/s limit withdrawn; bench stays at 1 Mbps |

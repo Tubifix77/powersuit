@@ -276,6 +276,10 @@ connector on it is male pins, which is why the whole bench wires with
 female-female jumpers and no breadboard. There is no RS pin on the header;
 slope control is handled on the board, so there is nothing to tie to ground.
 
+**Wire with both boards unplugged**, then plug them back in. Using the usual colours
+for the real jumpers (red power, black ground, yellow CANH, green CANL) makes the
+finished bench easy to check against the drawings below.
+
 Per board, four jumpers to its transceiver:
 
 ```
