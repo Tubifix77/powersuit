@@ -104,11 +104,10 @@ heartbeat through the real hub, SPI to the Pi starting at 1 MHz, micro-ROS last.
 
 ## Bringing the bench back up
 
-The bench as it was left: **B** runs `node_bench` as the orchestrator (sending a 10 Hz
-position hold to node 1), **C** runs the real `node_limb` in bench mode, both wired per
-[`bench-wiring.html`](bench-wiring.html) including the ground tie (wire 11, green on the
-real bench). **A** still runs the sibling project's firmware. The board register is in
-[`bench-log.md`](bench-log.md); identify boards by their CH343 serial, not COM number.
+The bench is two DevKitC-1 boards and two SN65HVD230 modules, wired per
+[`bench-wiring.html`](bench-wiring.html) — the parts list and every step are in
+[`bringup.md`](bringup.md) Appendix A. Identify boards by their CH343 serial, not COM
+number.
 
 1. Start Docker Desktop yourself. Repo scripts check for it and never launch it — on this
    PC it crash-loops on stranded socket files when started carelessly.
@@ -117,10 +116,6 @@ real bench). **A** still runs the sibling project's firmware. The board register
 3. `powershell -File firmware/tools/flash_bench.ps1 -Role <orch|limb|limbapp|selftest> -Port COMx`
 4. `<idf-python> firmware/tools/read_console.py COMx --seconds 30`, then
    [`bringup.md`](bringup.md) A.5 and A.6.
-
-The boards are shared with a sibling ESP32 project (Potluck). Before touching one, check
-it is not mid-measurement there — [`bench-log.md`](bench-log.md) says how. To give B and
-C back, flash them with Potluck's own build; the factory images are backed up by MAC.
 
 ## Where everything is
 

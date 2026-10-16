@@ -5,7 +5,7 @@ was found along the way. [`bringup.md`](bringup.md) is the *procedure*; this fil
 *record*. Write here when something is verified, not when it is planned. To pick the
 project up again, start with [`resuming.md`](resuming.md).
 
-## Summary — as left on 2026-10-16
+## Summary
 
 **Proven on silicon**, two ESP32-S3 boards over real CAN at 1 Mbit/s, no motors:
 
@@ -16,53 +16,20 @@ project up again, start with [`resuming.md`](resuming.md).
 | The real limb firmware | 1 kHz loop, worst iteration ~200–217 µs, 0 missed ticks; ~4 KB stack free | [3](#3-the-real-limb-firmware) |
 | The one actuation gate | allowed every tick while commanded and OPERATIONAL; refused every tick from the trip until re-arm | [4](#4-the-one-actuation-gate-both-ways) |
 
-**The bench as left:**
+The boards were borrowed from other projects for these tests and are not kept in this
+configuration. To repeat any of it, follow [`bringup.md`](bringup.md) Appendix A and wire
+per [`bench-wiring.html`](bench-wiring.html).
 
-| Board | Firmware | Power | Role |
-|---|---|---|---|
-| A | the sibling project's (Potluck) | PC USB | not part of this bench; carries Potluck's CP2102 adapter |
-| B | `node_bench`, orchestrator | PC USB (COM4) | 100 Hz heartbeat, 1 Hz MODE_SET, 10 Hz position hold to node 1 |
-| C | `node_limb`, bench mode | PC USB (COM5) | the real limb firmware, node 1 (arm_right), no motor hardware |
+## Boards used
 
-B and C each have an SN65HVD230 wired per [`bench-wiring.html`](bench-wiring.html),
-including wire 11, the board-to-board ground tie — **green on the real bench**, not black
-as drawn. CANL is also green; they share no end (CANL runs between the modules on the
-left, wire 11 between the boards' J3 headers on the right).
+The results below name boards B and C. Identify a board by its CH343 serial number in
+Device Manager, never by COM number.
 
-## Before touching a board
-
-The boards are shared with a sibling ESP32-S3 project, Potluck, which runs 24-hour
-soaks on them. While one is running, **do not** unplug a board, reflash one, press any
-button on one, or kill any `python.exe`. Check first:
-
-```powershell
-D:\Projects\potluck\tools\soak.ps1 -Status
-```
-
-Under Potluck's firmware the BOOT button (GPIO0) makes a node leave its cluster. To give
-B and C back to Potluck, flash them with its own build.
-
-**Board B's NVS very probably holds the owner's house Wi-Fi credentials**, written there by
-the sibling Wi-Fi-extender project (namespace `pme`) and never erased. Flashing does not
-remove them: `flash_bench.ps1` writes only 0x0, 0x8000 and 0x10000, and NVS sits at 0x9000.
-**Never `read-flash`, dump or log B's flash or NVS.** Powersuit stores nothing in NVS, so
-erasing that region costs it nothing — whether to do so is the owner's decision:
-`<idf-python> -m esptool --port COM4 erase-region 0x9000 0x6000`.
-
-## Board register
-
-Physical identity, which survives reflashing. The CH343 serial number identifies a board
-in Device Manager; COM numbers are this PC's and may differ elsewhere.
-
-| Board | MAC | COM | CH343 serial | Factory LED colour (frozen) |
-|---|---|---|---|---|
-| A | `b8:1f:3f:da:63:00` | COM3 | 5CBC414102 | blue |
-| B | `b8:1f:3f:da:73:68` | COM4 | 5C93086589 | — |
-| C | `b8:1f:3f:da:81:60` | COM5 | 5C93086538 | green |
-
-Factory images are backed up in `D:\esp\board-backups\`, named by MAC (A a full 16 MB
-dump; B and C the first 2 MB, which covers everything in use). Restore with
-`python -m esptool --port COMx write-flash 0 <file>`.
+| Board | MAC | CH343 serial |
+|---|---|---|
+| A | `b8:1f:3f:da:63:00` | 5CBC414102 |
+| B | `b8:1f:3f:da:73:68` | 5C93086589 |
+| C | `b8:1f:3f:da:81:60` | 5C93086538 |
 
 ## The hardware, as verified
 
@@ -252,7 +219,7 @@ before they are firmware — a hypothesis per counter, never a blanket excuse.
 | Date | Event |
 |---|---|
 | 2026-09-21 | Ordered — DKK 408 landed, AliExpress ([`bringup.md`](bringup.md) A.1) |
-| 2026-10-01 | Arrived. The sibling project verified silicon, security state, USB bridge and pins, and backed up the factory images. The transceiver schematic settles Rs = 10 kΩ and onboard 120 Ω; the 250 kbit/s claim is withdrawn |
+| 2026-10-01 | Arrived. The sibling project verified silicon, security state, USB bridge and pins. The transceiver schematic settles Rs = 10 kΩ and onboard 120 Ω; the 250 kbit/s claim is withdrawn |
 | 2026-10-04/05 | The sibling project runs CAN on B and C at 500 kbit/s; later removes the transceivers so the boards can be spread around a room |
 | 2026-10-15 | The sibling project's bench evidence read; `ps_can` sends in class order; `node_bench` drives both LED pins and joins CI |
 | 2026-10-16 | Powersuit owns the bench. CAN self-test passes on C (section 1) |

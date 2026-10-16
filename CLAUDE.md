@@ -102,10 +102,9 @@ yourself; label what is measured, what is from a datasheet, and what is only rep
 crash-loops on stranded socket files when started carelessly. If `docker info`
 fails, say so and stop; repo scripts only check for it.
 
-**The bench boards are shared** with a sibling project (Potluck) that runs 24-hour
-soaks on them. Before flashing, unplugging or resetting a board, read
-`docs/bench-log.md`; during a soak, leave every `python.exe` alone too. Building
-images touches no board and is always fine.
+**Bench boards are borrowed, not owned.** They were lent by other projects and are not
+kept flashed or wired for Powersuit. Ask before flashing, unplugging or resetting one;
+building images touches no board and is always fine.
 
 ## Invariants — do not break these
 
