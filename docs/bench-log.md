@@ -197,6 +197,11 @@ transmit task on the same core, so all thirteen are queued before any leaves: SA
 must be first, with no tolerance), and the realistic concurrent case kept as its own
 check with a bound computed from what had actually left.
 
+**The LED works with both pins driven:** C showed steady green, the pass colour, on the
+owner's look. Which pin carries it is still not established and need not be. A and B
+meanwhile showed red, which in Potluck's scheme means a peer is dead (over 50 %
+heartbeat loss): correctly reporting C's departure from the cell, not a fault.
+
 Also shown by this run: host flashing works (bootloader, partition table and app, 3.4 s
 for the app), Powersuit firmware boots on these boards, and `read_console.py` captures
 a board from boot. Not shown: anything on a real bus — loopback has no transceiver, no
@@ -215,7 +220,7 @@ second node, and no arbitration.
 
 | Date | Event |
 |---|---|
-| 2026-10-16 | Powersuit owns the bench. **First Powersuit firmware on silicon:** CAN self-test on C, all seven checks pass; SAFETY overtakes a 12-frame queue (1st, not 13th). A and B still on Potluck |
+| 2026-10-16 | Powersuit owns the bench. **First Powersuit firmware on silicon:** CAN self-test on C, all seven checks pass; SAFETY overtakes a 12-frame queue (1st, not 13th). C's LED steady green: both-pin drive works. A and B still on Potluck, red for C's departure |
 | 2026-09-21 | Ordered — DKK 408 landed, AliExpress ([A.1](bringup.md)) |
 | 2026-10-01 | Arrived. Potluck verified silicon, security state, bridge chip and pins; backed up factory images; started a 24 h soak (~19:20) |
 | 2026-10-01 | Both `node_bench` roles built in Docker and role-verified; host flash script dry-run checked. No board touched |
