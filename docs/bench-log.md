@@ -250,6 +250,28 @@ prove. It is two nodes at 1 Mbit/s on 20 cm, with no actuator, no hub, no SPI an
 load; everything above the dead-man switch in [bringup.md](bringup.md) is still
 unproven.
 
+### Second run: B on the mains charger, with wire 11
+
+The same test with B powered from the 6-port charger — whose output floats — and the
+board-to-board ground tie fitted (J3 `G` to J3 `G`). **On the real bench wire 11 is
+green**, not black as drawn, so two wires are green: CANL between the modules on the
+far left, wire 11 between the boards' J3 headers on the far right. They share no end.
+C on the PC, recorded for 100 s (`.verify-logs/deadman_charger_C.log`); the owner
+pulled B's lead from the charger and plugged it back, and saw the same LED sequence.
+
+| | C logged |
+|---|---|
+| boot, B beating from the charger | OPERATIONAL at 187 ms |
+| B's lead pulled | **`2 -> 3 (cause 6)`** at 23,197 ms |
+| B plugged back | **`3 -> 2`** at 35,742 ms |
+| errors | **0** in every one of 43 operational samples, and while B was gone |
+
+Estimated from the receive counter as before (steady 101.0 frames/s): **≈ 53 ms** of
+silence before the trip and **≈ 258 ms** of beats before re-arm — within a few
+milliseconds of the first run's 55 and 259. So both configurations are proven: two
+boards on one PC with no tie, and one board on a floating charger with the tie. One
+board on the charger *without* the tie has not been tried and should not be.
+
 ## Not yet verified
 
 - **RGB LED pin** — GPIO38 (v1.1) or GPIO48 (v1.0). Potluck's firmware never
@@ -264,6 +286,7 @@ unproven.
 
 | Date | Event |
 |---|---|
+| 2026-10-16 | Dead-man test repeated with B on the mains charger and wire 11 fitted (green on the real bench): trip cause 6 at ≈ 53 ms, re-arm ≈ 258 ms, 0 errors |
 | 2026-10-16 | **The dead-man switch works on silicon.** B orchestrator, C limb, 1 Mbit/s, 0 errors. Pulling B: C to PASSIVE, cause COMM_LOSS, ≈ 55 ms after the last beat; plugging B back: OPERATIONAL ≈ 259 ms after beats resumed |
 | 2026-10-16 | Powersuit owns the bench. **First Powersuit firmware on silicon:** CAN self-test on C, all seven checks pass; SAFETY overtakes a 12-frame queue (1st, not 13th). C's LED steady green: both-pin drive works. A and B still on Potluck, red for C's departure |
 | 2026-09-21 | Ordered — DKK 408 landed, AliExpress ([A.1](bringup.md)) |

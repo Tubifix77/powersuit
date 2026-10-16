@@ -348,7 +348,8 @@ Three things that account for most first-time failures:
 - **Common ground.** Two boards on the same PC share ground through it, and the tie
   is optional: the dead-man test ran that way on 2026-10-16, ten wires, zero errors.
   If one runs from the charger (A.4c) they do not, because a two-pin mains charger's
-  output floats, and the tie is needed. That configuration has not been tested.
+  output floats: fit the tie. With it, that configuration ran clean on 2026-10-16;
+  without it, it has never been tried.
 
 ## A.4b Building the two roles (read this before scripting it)
 

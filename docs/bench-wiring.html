@@ -128,8 +128,8 @@ CANL — so the finished bench is easy to check against this page.</p>
 <p><strong>Wire 11 depends on how the boards are powered.</strong> CAN needs the two transceivers to share a
 ground reference. <strong>With both boards on the same PC</strong> they already share one through its USB ports, and
 wire 11 is optional: the dead-man test of 2026-10-16 ran exactly that way, with ten wires and zero errors.
-<strong>With either board on the mains charger</strong>, whose output floats, wire 11 is needed — and that case has not
-been tested. The module's header has a single GND pin and wire 2 already uses it, so the tie runs board to
+<strong>With either board on the mains charger</strong>, whose output floats, fit wire 11: that configuration ran clean on
+2026-10-16 with the tie in place. Without it on the charger has never been tried. The module's header has a single GND pin and wire 2 already uses it, so the tie runs board to
 board; any <span class="k">G</span> pin works, and J3 pin 1 is simply the free one nearest the antenna.</p>
 
 <h2>What runs on them</h2>
