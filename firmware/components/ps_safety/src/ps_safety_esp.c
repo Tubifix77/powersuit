@@ -208,7 +208,7 @@ esp_err_t ps_safety_raise_estop(uint8_t cause)
     e.uptime_ms = now_ms();
 
     /* Repeated, unacknowledged: three arbitration-priority frames make loss
-     * negligible on a bus that never exceeds ~42% load (docs/safety.md §3). */
+     * negligible on a bus that never exceeds ~45% load (docs/safety.md §3). */
     esp_err_t first = ESP_OK;
     for (unsigned i = 0; i < PS_ESTOP_REPEAT; i++) {
         esp_err_t err = send_safety(PS_T_ESTOP, &e, (uint8_t)sizeof(e));

@@ -602,6 +602,7 @@ static void control_task(void *arg)
             if (s_imu_ok) {
                 float acc_g[3], gyr_rads[3];
                 if (imu_mpu6050_read(&s_imu, acc_g, gyr_rads) == ESP_OK) {
+                    snap.imu_valid = true;
                     ps_mahony_update(&s_mahony, gyr_rads[0], gyr_rads[1], gyr_rads[2],
                                      acc_g[0], acc_g[1], acc_g[2],
                                      (float)SENSOR_TICK_DIV * CTRL_TICK_S);

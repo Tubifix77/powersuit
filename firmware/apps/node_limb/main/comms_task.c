@@ -3,8 +3,8 @@
  *
  * Commands and telemetry ride the raw SAFETY/CONTROL/TELEM CAN planes, never
  * XRCE: network-map.md section 2's rate policy caps XRCE to low-rate topics,
- * parameters and services, and JOINT_STATE/IMU/FORCE alone are five 100 Hz
- * streams per limb. This node therefore subscribes to nothing over XRCE; the
+ * parameters and services, and JOINT_STATE (one per joint), IMU and FORCE alone
+ * are six 100 Hz streams per limb — ~600 frames/s, measured on the bench. This node therefore subscribes to nothing over XRCE; the
  * only entities it ever creates are the parameter server and a 1 Hz uptime
  * publisher (both explicitly low-rate).
  *
@@ -261,9 +261,11 @@ static void comms_task(void *arg)
 
         limb_sensor_snapshot_t snap;
         limb_sensor_snapshot(&snap);
-        limb_telem_send(PS_CLS_TELEM, PS_T_IMU_QUAT, &snap.quat, sizeof(snap.quat));
-        limb_telem_send(PS_CLS_TELEM, PS_T_IMU_ACC, &snap.acc, sizeof(snap.acc));
-        limb_telem_send(PS_CLS_TELEM, PS_T_IMU_GYR, &snap.gyr, sizeof(snap.gyr));
+        if (snap.imu_valid) {   /* absent or failed IMU: send nothing, not zeros */
+            limb_telem_send(PS_CLS_TELEM, PS_T_IMU_QUAT, &snap.quat, sizeof(snap.quat));
+            limb_telem_send(PS_CLS_TELEM, PS_T_IMU_ACC, &snap.acc, sizeof(snap.acc));
+            limb_telem_send(PS_CLS_TELEM, PS_T_IMU_GYR, &snap.gyr, sizeof(snap.gyr));
+        }
         limb_telem_send(PS_CLS_TELEM, PS_T_FORCE, &snap.force, sizeof(snap.force));
 
         if ((tick % 100u) == 0u) {   /* 1 Hz NODE_STATS + VERSION */

@@ -27,8 +27,8 @@ menu "Powersuit bench node"
         default PS_BENCH_LED_BOTH
         help
             Espressif moved the onboard WS2812 between board revisions:
-            GPIO48 on v1.0, GPIO38 on v1.1. GPIO47/48 are fed from the 1.8 V
-            VDD_SPI rail used by PSRAM, which is why it moved.
+            GPIO48 on v1.0, GPIO38 on v1.1 (Espressif's user guides for each
+            revision). The guides document the move, not the reason.
 
             Listings frequently do not say which revision they ship, so the
             default drives BOTH pins with the same colour: whichever carries the

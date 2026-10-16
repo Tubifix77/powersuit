@@ -43,6 +43,9 @@ typedef struct {
     ps_imu_acc_t  acc;
     ps_imu_gyr_t  gyr;
     ps_force_t    force;
+    bool          imu_valid;   /* quat/acc/gyr hold a real reading; if not, they are
+                                  not sent at all (an all-zero quaternion is not a
+                                  rotation, and must never reach the bus as data) */
 } limb_sensor_snapshot_t;
 
 typedef struct {
