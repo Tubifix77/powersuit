@@ -298,7 +298,7 @@ female-female jumpers and no breadboard. There is no RS pin on the header;
 slope control is handled on the board, so there is nothing to tie to ground.
 
 **The drawing to wire from is [`bench-wiring.html`](bench-wiring.html)**, open it in a
-browser: both boards and modules as they sit on the bench, all eleven wires, colour-coded.
+browser: both boards and modules as they sit on the bench, every wire colour-coded.
 
 **Wire with both boards unplugged**, then plug them back in. Using the usual colours
 for the real jumpers (red power, black ground, yellow CANH, green CANL) makes the
@@ -324,9 +324,10 @@ Then the bus itself, between the two transceiver modules:
    CANL ------------------------>  CANL
 ```
 
-And one ground tie — **between the two DevKits, not between the modules.** The
-transceiver's header carries a single GND pin and it is already occupied by the
-wire to its own board. Use any spare GND on each DevKit:
+And, **if either board runs from the charger**, one ground tie — **between the two
+DevKits, not between the modules.** The transceiver's header carries a single GND pin
+and it is already occupied by the wire to its own board. Use any spare GND on each
+DevKit:
 
 ```
    DevKit A  GND (spare) ------->  DevKit B  GND (spare)
@@ -344,10 +345,10 @@ Three things that account for most first-time failures:
   `bus_errors` climbing with `rx_frames` stuck at zero.
 - **CANH goes to CANH.** Unlike a serial crossover, the differential pair is
   straight-through.
-- **Common ground.** Two boards on the same PC share ground through it — but if
-  one runs from the charger (A.4c) they do not, because a two-pin mains charger's
-  output floats. CAN needs a common reference, so run the tie regardless. It is
-  one wire.
+- **Common ground.** Two boards on the same PC share ground through it, and the tie
+  is optional: the dead-man test ran that way on 2026-10-16, ten wires, zero errors.
+  If one runs from the charger (A.4c) they do not, because a two-pin mains charger's
+  output floats, and the tie is needed. That configuration has not been tested.
 
 ## A.4b Building the two roles (read this before scripting it)
 

@@ -11,7 +11,7 @@ the *record*. Update it when something is verified, not when it is planned.
 | Hardware | **Arrived.** Verified on the real units by the sibling project (Potluck). |
 | Boards right now | **In use by Potluck.** All three on the PC's USB ports; the CP2102 on board A and the PC |
 | CAN | **No transceivers attached.** They were wired to B and C for Potluck's CAN tests, then removed so B and C could be placed apart in the room for radio tests. A physical tether, not an electrical problem |
-| Powersuit on silicon | **The dead-man switch works on the two-board bench** (2026-10-16). B is the orchestrator, C the limb, wired per [`bench-wiring.html`](bench-wiring.html); A still runs Potluck |
+| Powersuit on silicon | **The dead-man switch works on the two-board bench** (2026-10-16). B is the orchestrator, C the limb, wires 1–10 of [`bench-wiring.html`](bench-wiring.html), no ground tie (both on the PC); A still runs Potluck |
 | Images | Self-test built and on C. Both `node_bench` roles need a rebuild before flashing: the ones on disk predate `ps_can_txq` |
 | Next | Powersuit has the bench (2026-10-16). First the one-board CAN self-test on C, no wiring ([bringup.md](bringup.md) §2); then wire B and C per [A.4](bringup.md), flash both roles ([A.4d](bringup.md)), run [A.5](bringup.md) |
 
@@ -210,8 +210,11 @@ second node, and no arbitration.
 ## The dead-man switch, on silicon — 2026-10-16
 
 [bringup.md](bringup.md) A.5. B runs `node_bench` as the orchestrator (COM4), C as the
-limb (COM5), both on the PC's USB, wired per [`bench-wiring.html`](bench-wiring.html)
-at 1 Mbit/s. C's console recorded from boot for two minutes
+limb (COM5), both on the PC's USB, wired with wires 1–10 of
+[`bench-wiring.html`](bench-wiring.html) — **without wire 11, the board-to-board ground
+tie**: both boards shared ground through the PC's USB, as in the sibling project's
+CAN run. So the ten-wire, same-PC configuration is the one proven; the
+charger-powered configuration, which needs the tie, has not been run. 1 Mbit/s. C's console recorded from boot for two minutes
 (`.verify-logs/deadman_C.log`) while the owner pulled B's USB cable and plugged it back
 in, watching C's LED.
 

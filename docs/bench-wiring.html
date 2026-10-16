@@ -68,7 +68,7 @@ adapter are not part of this.</p>
 <div class="bad">
 <strong>Five rules.</strong>
 <ul>
-<li>Use the board pins printed <span class="k">3V3</span>, <span class="k">4</span>, <span class="k">5</span> and <span class="k">G</span> on header J1 (3V3 at the antenna end), plus the <span class="k">G</span> at the top of header J3 for the ground tie.</li>
+<li>Use the board pins printed <span class="k">3V3</span>, <span class="k">4</span>, <span class="k">5</span> and <span class="k">G</span> on header J1 (3V3 at the antenna end), plus the <span class="k">G</span> at the top of header J3 for the ground tie if a board runs from the charger.</li>
 <li>Board <span class="k">4</span> → module <span class="k">TX</span>, board <span class="k">5</span> → module <span class="k">RX</span>. <strong>Straight, not crossed.</strong> The module's TX pin is its transmitter's input; it takes what the ESP32 wants to send.</li>
 <li>The module's supply goes to the board's <span class="k">3V3</span>. Never to <span class="k">5V</span>.</li>
 <li>Match every wire by its <strong>printed label</strong>, never by counting positions.</li>
@@ -121,14 +121,16 @@ the pins; either works for the bus, and leaving the terminal free lets you clamp
 <tr><td>10</td><td>module B <span class="k">CANL</span></td><td>module C <span class="k">CANL</span></td><td>L to L</td></tr>
 <tr><td>11</td><td>board B <span class="k">G</span> (J3 pin 1)</td><td>board C <span class="k">G</span> (J3 pin 1)</td><td>ground tie</td></tr>
 </table>
-<p>Eleven jumper wires, all female-female. No resistors: each module carries its own 120 Ω terminator,
+<p>Ten jumper wires, eleven with the ground tie, all female-female. No resistors: each module carries its own 120 Ω terminator,
 which is exactly right for a bus with two nodes, one at each end. Use the usual colours for the real
 jumpers — <strong>red</strong> for power, <strong>black</strong> for ground, yellow for CANH, green for
 CANL — so the finished bench is easy to check against this page.</p>
-<p><strong>Why wire 11.</strong> The module's header has a single GND pin and wire 2 already uses it, so
-the boards tie their grounds directly. Two boards on the same PC share ground through it anyway; but in
-the test, the orchestrator runs from the mains charger, whose output floats, and CAN needs a common
-reference. Any <span class="k">G</span> pin works — J3 pin 1 is simply the free one nearest the antenna.</p>
+<p><strong>Wire 11 depends on how the boards are powered.</strong> CAN needs the two transceivers to share a
+ground reference. <strong>With both boards on the same PC</strong> they already share one through its USB ports, and
+wire 11 is optional: the dead-man test of 2026-10-16 ran exactly that way, with ten wires and zero errors.
+<strong>With either board on the mains charger</strong>, whose output floats, wire 11 is needed — and that case has not
+been tested. The module's header has a single GND pin and wire 2 already uses it, so the tie runs board to
+board; any <span class="k">G</span> pin works, and J3 pin 1 is simply the free one nearest the antenna.</p>
 
 <h2>What runs on them</h2>
 <ol>
@@ -137,11 +139,11 @@ reference. Any <span class="k">G</span> pin works — J3 pin 1 is simply the fre
 <li><strong>Flash</strong> each board through its <span class="k">COM</span> socket. This replaces the sibling project's firmware on B and C:
 <pre><code>powershell -File firmware/tools/flash_bench.ps1 -Role orch -Port COM4
 powershell -File firmware/tools/flash_bench.ps1 -Role limb -Port COM5 -Monitor</code></pre></li>
-<li><strong>Move B to the charger.</strong> The orchestrator needs no console once flashed. C stays on the PC
-with its monitor open.</li>
+<li><strong>Power B.</strong> Simplest, and how it was first run: leave B on the PC and pull its USB cable in
+step 5. Or move B to the charger — then wire 11 is required. C stays on the PC with its monitor open.</li>
 <li><strong>Watch C.</strong> Amber while B is off: STANDBY, no heartbeat, no authority. Plug B's charger in:
-within a few hundred milliseconds C pulses white-blue, OPERATIONAL.</li>
-<li><strong>Pull B's charger lead.</strong> C must go amber within 50 ms and log
+within a few hundred milliseconds C pulses white-blue, OPERATIONAL. (If B is already beating, C gets there by itself.)</li>
+<li><strong>Pull B's USB or charger lead.</strong> C must go amber within 50 ms and log
 <code>&gt;&gt;&gt; 2 -&gt; 3 (cause 6)</code> — OPERATIONAL to PASSIVE, cause COMM_LOSS. That is the dead-man switch.</li>
 </ol>
 
