@@ -272,6 +272,51 @@ milliseconds of the first run's 55 and 259. So both configurations are proven: t
 boards on one PC with no tie, and one board on a floating charger with the tie. One
 board on the charger *without* the tie has not been tried and should not be.
 
+## The real limb firmware on silicon — 2026-10-16
+
+[bringup.md](bringup.md) A.6. C runs the actual `node_limb` image (arm_right, node 1)
+in bench mode — motor driver, encoders and current sense not initialised, everything
+else real, micro-ROS client included because it is vendored in this checkout. B keeps
+beating from the charger as the `node_bench` orchestrator; the same wiring.
+Log: `.verify-logs/limbapp_C.log`.
+
+| | Result |
+|---|---|
+| boot | node 1 up in ~350 ms; IMU absent, reported, and its telemetry suppressed |
+| safety | armed (watchdog 50 ms, re-arm 250 ms); OPERATIONAL ~0.7 s after boot on B's beats |
+| **1 kHz control loop, core 1** | ~1,000 ticks/s; **worst iteration 196–203 µs** of a 1,000 µs period; **0 missed ticks** over 20,000 periods |
+| control-task stack | **4,040 B free** of 6,144 |
+| **TELEM out, core 0** | **~607 frames/s** — six 100 Hz streams, as designed — all acknowledged by B |
+| CAN | ~101 frames/s in, **0 bus errors**, 0 dropped |
+| safety gate | 0 would-actuate ticks: correct, since nothing commands a joint out of PASSIVE |
+
+**The first run reported 38 missed ticks, and they were boot latency.** The count was
+identical at 10, 20 and 30 s: the 1 kHz timer starts before the control task has
+brought its hardware up, and the absent IMU's I2C timeout takes ~38 ms, so ticks piled
+up and the first iteration counted them. The task now discards that backlog before its
+loop starts; the re-run reads 0.
+
+**Not exercised yet:** the gate's *yes* path. Nothing sends the limb a JOINT_CMD, so no
+joint ever asks to be energised. Next step: have the bench orchestrator command a
+position hold, so would-actuate climbs while OPERATIONAL and stops the instant B is
+pulled — the one actuation gate, shown on silicon.
+
+### Known defect found on the way: node_limb's pin map
+
+`board_limb.h` cannot run on an ESP32-S3 DevKitC-1 N16R8. Joint 0's gate pins are GPIO
+22–25, **which do not exist on the S3** (it has 0–21 and 26–48), so `ps_focdrv_init()`
+fails at boot — the real reason node_limb never came up without its hardware. Joint 1's
+are 35–37, **the octal PSRAM on R8 parts**, and 38, the v1.1 LED. And the budget does
+not close: two 6-gate FOC joints, current sense, strain, IMU, encoder SPI and CAN want
+29 signals against 23 safe GPIOs on the DevKit's headers. A hardware decision, not a
+renumbering — 3-PWM gate drivers, fewer sensors, a second MCU, or servo limbs on the
+cosplay path — and recorded rather than guessed at. Bench mode runs everything but the
+motor hardware meanwhile, and `flash_bench.ps1` refuses a non-bench node_limb image.
+
+Also found: five apps set `SDKCONFIG_DEFAULTS` unguarded, so a defaults overlay passed
+with `-D` was silently ignored — the bug `node_bench` had fixed on 2026-10-01. All
+guarded now. `node_flight`'s pins are all valid; its servo on GPIO38 shares the v1.1 LED.
+
 ## Not yet verified
 
 - **RGB LED pin** — GPIO38 (v1.1) or GPIO48 (v1.0). Potluck's firmware never
@@ -286,6 +331,7 @@ board on the charger *without* the tie has not been tried and should not be.
 
 | Date | Event |
 |---|---|
+| 2026-10-16 | **The real `node_limb` firmware runs on C** in bench mode: 1 kHz loop, worst iteration ~200 µs, 0 missed ticks; ~607 TELEM frames/s out, 0 errors. Found: `board_limb.h`'s pin map uses GPIO that do not exist on the S3 |
 | 2026-10-16 | Dead-man test repeated with B on the mains charger and wire 11 fitted (green on the real bench): trip cause 6 at ≈ 53 ms, re-arm ≈ 258 ms, 0 errors |
 | 2026-10-16 | **The dead-man switch works on silicon.** B orchestrator, C limb, 1 Mbit/s, 0 errors. Pulling B: C to PASSIVE, cause COMM_LOSS, ≈ 55 ms after the last beat; plugging B back: OPERATIONAL ≈ 259 ms after beats resumed |
 | 2026-10-16 | Powersuit owns the bench. **First Powersuit firmware on silicon:** CAN self-test on C, all seven checks pass; SAFETY overtakes a 12-frame queue (1st, not 13th). C's LED steady green: both-pin drive works. A and B still on Potluck, red for C's departure |

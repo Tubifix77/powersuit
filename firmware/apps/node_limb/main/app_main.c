@@ -113,5 +113,17 @@ void app_main(void)
                  (unsigned long)ctr.mode_set_rx,
                  (unsigned long)can_stats.rx_frames, (unsigned long)can_stats.tx_frames,
                  (unsigned long)can_stats.rx_dropped, (unsigned long)can_stats.bus_errors);
+        limb_timing_t tm;
+        limb_control_timing(&tm);
+        ESP_LOGI(TAG, "timing: loop max %lu us, missed ticks %lu, ctrl stack free %lu B"
+#if CONFIG_PS_LIMB_BENCH
+                 ", would-actuate %lu"
+#endif
+                 , (unsigned long)tm.max_exec_us, (unsigned long)tm.missed_ticks,
+                 (unsigned long)tm.stack_free_bytes
+#if CONFIG_PS_LIMB_BENCH
+                 , (unsigned long)tm.would_actuate_ticks
+#endif
+                 );
     }
 }

@@ -5,6 +5,7 @@
 #   bash firmware/tools/build_bench.sh
 #   BENCH_CAN_BITRATE=250000 bash firmware/tools/build_bench.sh   # fallback rate
 #   BENCH_SELFTEST=1 bash firmware/tools/build_bench.sh           # one-board CAN self-test
+#   BENCH_LIMB=1 bash firmware/tools/build_bench.sh               # the real node_limb, bench mode
 #
 # Output: firmware/apps/node_bench/build_limb/ and build_orch/, on the bind mount
 # so the host can flash them (docs/bringup.md A.4d). The full build log goes to
@@ -42,6 +43,47 @@ if [ "$BITRATE" != 1000000 ]; then
     echo "== bench bitrate override: $BITRATE bit/s (contract is 1000000)"
 else
     rm -rf "$APP/build_overlay"
+fi
+
+# The real node_limb firmware in bench mode (CONFIG_PS_LIMB_BENCH): no motor
+# driver, encoders or current sense, CAN on the bench's GPIO4/5. Its own build
+# directory in node_limb; the node_bench builds are left alone.
+if [ "${BENCH_LIMB:-0}" = 1 ]; then
+    LAPP=firmware/apps/node_limb
+    rm -rf "$REPO/$LAPP/build_bench"
+    mkdir -p "$REPO/$LAPP/build_bench"
+    # The overlay lives inside the build dir so it is ignored and deleted with it.
+    { echo "CONFIG_PS_LIMB_BENCH=y"; [ "$BITRATE" != 1000000 ] && echo "CONFIG_PS_CAN_BITRATE=$BITRATE"; } \
+        > "$REPO/$LAPP/build_bench/bench.defaults"
+    echo "== building node_limb in bench mode (log: .verify-logs/bench_build.log)"
+    set +e
+    MSYS_NO_PATHCONV=1 docker run --rm \
+        -v "$(host_path "$REPO"):/ws" -v ps_ccache:/root/.ccache \
+        -e IDF_CCACHE_ENABLE=1 -w "/ws/$LAPP" "$IDF_IMAGE" bash -c '
+            set -e
+            git config --global --add safe.directory "*" 2>/dev/null
+            idf.py -B build_bench -D SDKCONFIG=build_bench/sdkconfig \
+                -D SDKCONFIG_DEFAULTS="../../sdkconfig.defaults.common;sdkconfig.defaults;build_bench/bench.defaults" \
+                build' >"$LOG" 2>&1
+    rc=$?
+    set -e
+    if [ $rc -ne 0 ]; then
+        echo "BUILD FAILED (exit $rc). Errors:" >&2
+        grep -E "error:|CMake Error|FAILED:" "$LOG" | sort -u | head -20 >&2
+        exit 1
+    fi
+    fail=0
+    for want in "CONFIG_PS_LIMB_BENCH=y" "CONFIG_PS_LIMB_BENCH_CAN_TX_GPIO=4" "CONFIG_PS_LIMB_BENCH_CAN_RX_GPIO=5" "CONFIG_PS_CAN_BITRATE=$BITRATE"; do
+        if grep -qx "$want" "$REPO/$LAPP/build_bench/sdkconfig"; then echo "  ok   limb-bench: $want"
+        else echo "  FAIL limb-bench: expected '$want' in $LAPP/build_bench/sdkconfig" >&2; fail=1; fi
+    done
+    for f in flasher_args.json node_limb.elf node_limb.bin; do
+        [ -f "$REPO/$LAPP/build_bench/$f" ] || { echo "  FAIL limb-bench: missing $f" >&2; fail=1; }
+    done
+    [ $fail -eq 0 ] || exit 1
+    echo "node_limb bench build done and verified"
+    echo "flash: powershell -File firmware/tools/flash_bench.ps1 -Role limbapp -Port COMx -Monitor"
+    exit 0
 fi
 
 # One-board CAN self-test: its own build directory, the role builds left alone.

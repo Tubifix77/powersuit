@@ -23,7 +23,7 @@ powershell -File firmware/tools/flash_bench.ps1 -Role orch -Port COM3 -DryRun
 Prints the commands it would run and opens no port.
 #>
 param(
-    [Parameter(Mandatory)] [ValidateSet('limb', 'orch', 'selftest')] [string] $Role,
+    [Parameter(Mandatory)] [ValidateSet('limb', 'orch', 'selftest', 'limbapp')] [string] $Role,
     [Parameter(Mandatory)] [ValidatePattern('^COM\d+$')] [string] $Port,
     [switch] $Monitor,
     [switch] $DryRun,
@@ -32,7 +32,14 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repo  = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$build = Join-Path $repo "firmware\apps\node_bench\build_$Role"
+# limbapp is the real node_limb firmware in bench mode; the rest are node_bench images.
+if ($Role -eq 'limbapp') {
+    $build = Join-Path $repo 'firmware\apps\node_limb\build_bench'
+    $elf   = 'node_limb.elf'
+} else {
+    $build = Join-Path $repo "firmware\apps\node_bench\build_$Role"
+    $elf   = 'node_bench.elf'
+}
 
 # 1. A build exists, and it is the role asked for.
 $argsFile = Join-Path $build 'flasher_args.json'
@@ -42,7 +49,14 @@ if (-not (Test-Path $argsFile)) {
 $sdk    = Join-Path $build 'sdkconfig'
 $isSelf = [bool](Select-String -Path $sdk -Pattern '^CONFIG_PS_BENCH_SELFTEST=y$' -Quiet)
 $isOrch = [bool](Select-String -Path $sdk -Pattern '^CONFIG_PS_BENCH_IS_ORCH=y$' -Quiet)
-$wrong  = if ($Role -eq 'selftest') { -not $isSelf } else { $isSelf -or ($isOrch -ne ($Role -eq 'orch')) }
+$isLimbBench = [bool](Select-String -Path $sdk -Pattern '^CONFIG_PS_LIMB_BENCH=y$' -Quiet)
+# A node_limb image without bench mode would drive GPIO 22-25 and the PSRAM pins
+# (board_limb.h's known defect): never flash one onto a DevKit.
+$wrong  = switch ($Role) {
+    'limbapp'  { -not $isLimbBench }
+    'selftest' { -not $isSelf }
+    default    { $isSelf -or ($isOrch -ne ($Role -eq 'orch')) }
+}
 if ($wrong) {
     throw "build_$Role\sdkconfig holds the WRONG image - rebuild with firmware/tools/build_bench.sh"
 }
@@ -68,9 +82,9 @@ $files = @($fa.flash_files.PSObject.Properties |
 $chip  = $fa.extra_esptool_args.chip
 
 $flashCmd   = @('-m', 'esptool', '--chip', $chip, '-p', $Port, '-b', "$Baud", 'write-flash') + $opts + $files
-$monitorCmd = @('-m', 'esp_idf_monitor', '-p', $Port, 'node_bench.elf')
+$monitorCmd = @('-m', 'esp_idf_monitor', '-p', $Port, $elf)
 
-Write-Host "node_bench role '$Role' -> $Port"
+Write-Host "image '$Role' ($elf) -> $Port"
 Write-Host "python : $py"
 Write-Host "build  : $build"
 Write-Host 'Shared boards: if a sibling-project soak is running, stop now (docs/bench-log.md).'

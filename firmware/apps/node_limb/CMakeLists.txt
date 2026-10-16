@@ -3,7 +3,11 @@
 # (Kconfig.projbuild) selects the board table and node identity at build time.
 cmake_minimum_required(VERSION 3.16)
 
-set(SDKCONFIG_DEFAULTS "../../sdkconfig.defaults.common;sdkconfig.defaults")
+# Guarded so -D SDKCONFIG_DEFAULTS=... on the command line wins: a bare set()
+# runs before project() and silently clobbers the cache value (node_bench).
+if(NOT SDKCONFIG_DEFAULTS)
+    set(SDKCONFIG_DEFAULTS "../../sdkconfig.defaults.common;sdkconfig.defaults")
+endif()
 set(EXTRA_COMPONENT_DIRS "../../components")
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../../third_party/micro_ros_espidf_component")
     list(APPEND EXTRA_COMPONENT_DIRS "../../third_party/micro_ros_espidf_component")

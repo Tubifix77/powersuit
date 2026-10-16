@@ -24,6 +24,7 @@
 #include "driver/i2c_master.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 
 #include "powersuit_proto/wire.h"
 #include "ps_pid.h"
@@ -47,6 +48,15 @@ static const char *TAG = "node_limb";
 #define TWO_PI                 6.283185307f
 #define RAD_S_TO_DDPS          572.9578f   /* rad/s -> 0.1 deg/s (wire.h ddps) */
 #define STRAIN_TARE_SAMPLES    32u
+#define STACK_SAMPLE_TICKS     10000u  /* stack high-water mark every 10 s */
+
+/* Bench mode (CONFIG_PS_LIMB_BENCH) has no encoder, ADC or strain hardware, so
+ * those helpers go unused there; mark them rather than fork the code. */
+#if CONFIG_PS_LIMB_BENCH
+#define BENCH_UNUSED __attribute__((unused))
+#else
+#define BENCH_UNUSED
+#endif
 
 /* ---------------- AS5047-style absolute magnetic encoder ----------------
  * 14-bit angle, single 16-bit SPI transfer (mode 1, "read angle, no CRC"
@@ -60,7 +70,7 @@ typedef struct {
     float    vel_rad_s;     /* low-pass filtered motor-shaft velocity */
 } limb_encoder_t;
 
-static esp_err_t encoder_init(limb_encoder_t *e, spi_host_device_t host, int cs_gpio)
+BENCH_UNUSED static esp_err_t encoder_init(limb_encoder_t *e, spi_host_device_t host, int cs_gpio)
 {
     memset(e, 0, sizeof(*e));
     spi_device_interface_config_t dcfg = {
@@ -72,7 +82,7 @@ static esp_err_t encoder_init(limb_encoder_t *e, spi_host_device_t host, int cs_
     return spi_bus_add_device(host, &dcfg, &e->dev);
 }
 
-static uint16_t encoder_read_raw14(limb_encoder_t *e)
+BENCH_UNUSED static uint16_t encoder_read_raw14(limb_encoder_t *e)
 {
     spi_transaction_t t = {
         .flags = SPI_TRANS_USE_TXDATA | SPI_TRANS_USE_RXDATA,
@@ -88,7 +98,7 @@ static uint16_t encoder_read_raw14(limb_encoder_t *e)
 
 /* Advances multi-turn angle + a 1-pole velocity estimate. Call once per 1 kHz
  * tick; dt is CTRL_TICK_S. */
-static void encoder_update(limb_encoder_t *e, float dt)
+BENCH_UNUSED static void encoder_update(limb_encoder_t *e, float dt)
 {
     uint16_t raw = encoder_read_raw14(e);
     if (e->have_last) {
@@ -191,17 +201,35 @@ static ps_foc_ctl_t s_foc[PS_LIMB_JOINT_COUNT];
 static int16_t s_torque_limit_cnm[PS_LIMB_JOINT_COUNT];
 static uint32_t s_oc_ticks[PS_LIMB_JOINT_COUNT];
 
-static ps_focdrv_handle_t s_focdrv[PS_LIMB_JOINT_COUNT];
+BENCH_UNUSED static ps_focdrv_handle_t s_focdrv[PS_LIMB_JOINT_COUNT];
 static limb_encoder_t s_enc[PS_LIMB_JOINT_COUNT];
 static adc_oneshot_unit_handle_t s_adc;
 static imu_mpu6050_t s_imu;
 static bool s_imu_ok;
 static ps_mahony_t s_mahony;
-static float s_strain_offset[4];
+BENCH_UNUSED static float s_strain_offset[4];
 
-static const adc_channel_t s_strain_chan[4] = {
+BENCH_UNUSED static const adc_channel_t s_strain_chan[4] = {
     PS_BOARD_ADC_STRAIN0, PS_BOARD_ADC_STRAIN1, PS_BOARD_ADC_STRAIN2, PS_BOARD_ADC_STRAIN3,
 };
+
+/* Loop timing, written by control_task only, read by anyone via
+ * limb_control_timing(). Plain 32-bit stores are atomic on Xtensa. */
+static volatile uint32_t s_max_exec_us;
+static volatile uint32_t s_missed_ticks;
+static volatile uint32_t s_stack_free_bytes;
+static volatile uint32_t s_would_actuate_ticks;
+
+void limb_control_timing(limb_timing_t *out)
+{
+    if (out == NULL) {
+        return;
+    }
+    out->max_exec_us = s_max_exec_us;
+    out->missed_ticks = s_missed_ticks;
+    out->stack_free_bytes = s_stack_free_bytes;
+    out->would_actuate_ticks = s_would_actuate_ticks;
+}
 
 void limb_control_reset_pids(void)
 {
@@ -312,7 +340,7 @@ static int16_t sat_i16(float v)
     return (int16_t)v;
 }
 
-static float adc_read_amps(adc_channel_t chan, float offset_mv, float mv_per_a)
+BENCH_UNUSED static float adc_read_amps(adc_channel_t chan, float offset_mv, float mv_per_a)
 {
     int raw = 0;
     if (adc_oneshot_read(s_adc, chan, &raw) != ESP_OK) {
@@ -327,6 +355,16 @@ static float adc_read_amps(adc_channel_t chan, float offset_mv, float mv_per_a)
  * (energize == false) takes the same free-wheel/damp branch as a safety trip. */
 static void joint_write(int j, bool energize, const float duty[3], float motor_vel_rad_s)
 {
+#if CONFIG_PS_LIMB_BENCH
+    /* No gate driver on the bench: record what the gate decided instead. The
+     * same check, in the same place, so the count is evidence about the real path. */
+    (void)j;
+    (void)duty;
+    (void)motor_vel_rad_s;
+    if (energize && ps_safety_can_actuate()) {
+        s_would_actuate_ticks++;
+    }
+#else
     if (energize && ps_safety_can_actuate()) {
         ps_focdrv_set_duty(s_focdrv[j], duty);
         return;
@@ -336,6 +374,7 @@ static void joint_write(int j, bool energize, const float duty[3], float motor_v
     } else {
         ps_focdrv_disable(s_focdrv[j]);
     }
+#endif
 }
 
 /* ---------------- init ---------------- */
@@ -359,6 +398,7 @@ static void control_init_hw(void)
     }
     ps_mahony_init(&s_mahony, 0.5f, 0.01f);
 
+#if !CONFIG_PS_LIMB_BENCH
     /* Shared SPI bus for both joint encoders. */
     spi_bus_config_t spi_bus_cfg = {
         .sclk_io_num = PS_BOARD_ENC_SCLK_GPIO,
@@ -394,10 +434,12 @@ static void control_init_hw(void)
         }
         s_strain_offset[c] = (float)sum / (float)STRAIN_TARE_SAMPLES;
     }
+#endif /* !CONFIG_PS_LIMB_BENCH */
 
     for (int j = 0; j < PS_LIMB_JOINT_COUNT; j++) {
         const ps_limb_joint_cfg_t *cfg = &PS_LIMB_JOINTS[j];
 
+#if !CONFIG_PS_LIMB_BENCH
         ESP_ERROR_CHECK(encoder_init(&s_enc[j], PS_BOARD_ENC_SPI_HOST, cfg->encoder_cs_gpio));
 
         ps_focdrv_config_t fcfg = {
@@ -407,6 +449,9 @@ static void control_init_hw(void)
             .gpio_wh = cfg->gate_wh, .gpio_wl = cfg->gate_wl,
         };
         ESP_ERROR_CHECK(ps_focdrv_init(&fcfg, &s_focdrv[j]));
+#else
+        memset(&s_enc[j], 0, sizeof(s_enc[j]));   /* joint at rest, never moves */
+#endif
 
         ps_pid_init(&s_pos_pid[j], cfg->pos_kp, cfg->pos_ki, cfg->pos_kd,
                     -cfg->pos_vel_limit_rad_s, cfg->pos_vel_limit_rad_s);
@@ -418,6 +463,10 @@ static void control_init_hw(void)
 
     ESP_LOGI(TAG, "control hw up: %s + %s, imu %s", PS_LIMB_JOINTS[0].name,
              PS_LIMB_JOINTS[1].name, s_imu_ok ? "ok" : "MISSING");
+#if CONFIG_PS_LIMB_BENCH
+    ESP_LOGW(TAG, "BENCH MODE: no motor driver, encoders or current sense; joints at "
+                  "rest, gate decisions counted instead of driven");
+#endif
 }
 
 /* ---------------- 1 kHz control loop ---------------- */
@@ -426,10 +475,22 @@ static void control_task(void *arg)
 {
     (void)arg;
     control_init_hw();
+    /* The 1 kHz timer is already running (limb_control_start), so ticks piled up
+     * while the hardware came up — tens of ms when the IMU is absent and I2C
+     * times out. Discard them: they are boot latency, not missed control
+     * periods, and the first iteration should not be counted as an overrun. */
+    (void)ulTaskNotifyTake(pdTRUE, 0);
 
     uint32_t tick = 0;
     for (;;) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);   /* woken by the gptimer ISR */
+        /* Woken by the gptimer ISR. More than one pending notification means
+         * timer periods elapsed while the previous iteration was still running:
+         * missed control ticks. */
+        uint32_t pending = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (pending > 1u) {
+            s_missed_ticks += pending - 1u;
+        }
+        int64_t t_start = esp_timer_get_time();
         tick++;
         limb_counters_bump_control_tick();
 
@@ -440,9 +501,13 @@ static void control_task(void *arg)
         for (int j = 0; j < PS_LIMB_JOINT_COUNT; j++) {
             const ps_limb_joint_cfg_t *cfg = &PS_LIMB_JOINTS[j];
 
+#if CONFIG_PS_LIMB_BENCH
+            const float ia = 0.0f, ib = 0.0f;   /* no current sense; joint at rest */
+#else
             encoder_update(&s_enc[j], CTRL_TICK_S);
             float ia = adc_read_amps(cfg->adc_ia, cfg->cur_offset_mv, cfg->cur_mv_per_a);
             float ib = adc_read_amps(cfg->adc_ib, cfg->cur_offset_mv, cfg->cur_mv_per_a);
+#endif
             float theta_e = encoder_electrical_theta(s_enc[j].last_raw, cfg->pole_pairs);
 
             float out_pos = (float)cfg->dir_sign * s_enc[j].angle_rad / cfg->gear_ratio;
@@ -552,6 +617,7 @@ static void control_task(void *arg)
                     snap.gyr.gz = sat_i16(gyr_rads[2] * RAD_S_TO_DDPS);
                 }
             }
+#if !CONFIG_PS_LIMB_BENCH
             for (int c = 0; c < 4; c++) {
                 int raw = 0;
                 if (adc_oneshot_read(s_adc, s_strain_chan[c], &raw) == ESP_OK) {
@@ -559,7 +625,17 @@ static void control_task(void *arg)
                                                PS_STRAIN_CN_PER_COUNT);
                 }
             }
+#endif
             sensor_publish(&snap);
+        }
+
+        uint32_t exec_us = (uint32_t)(esp_timer_get_time() - t_start);
+        if (exec_us > s_max_exec_us) {
+            s_max_exec_us = exec_us;
+        }
+        if (tick == 1u || (tick % STACK_SAMPLE_TICKS) == 0u) {
+            /* ESP-IDF reports the high-water mark in bytes, not words. */
+            s_stack_free_bytes = (uint32_t)uxTaskGetStackHighWaterMark(NULL);
         }
     }
 }

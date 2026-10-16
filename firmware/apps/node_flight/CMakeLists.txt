@@ -1,7 +1,11 @@
 # node_flight_actuation (Node 5) — ESP32-S3 flap servos + aero engine.
 cmake_minimum_required(VERSION 3.16)
 
-set(SDKCONFIG_DEFAULTS "../../sdkconfig.defaults.common;sdkconfig.defaults")
+# Guarded so -D SDKCONFIG_DEFAULTS=... on the command line wins: a bare set()
+# runs before project() and silently clobbers the cache value (node_bench).
+if(NOT SDKCONFIG_DEFAULTS)
+    set(SDKCONFIG_DEFAULTS "../../sdkconfig.defaults.common;sdkconfig.defaults")
+endif()
 set(EXTRA_COMPONENT_DIRS "../../components")
 
 # Mirrors the detection in firmware/components/ps_uros/CMakeLists.txt: the

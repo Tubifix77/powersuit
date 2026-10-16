@@ -71,6 +71,18 @@ bool limb_param_get(const char *name, double *out_value);
 
 esp_err_t limb_control_start(void);   /* core 1, prio 20, 1 kHz gptimer-notified */
 
+/* Does the 1 kHz loop keep time? Since boot: the worst single iteration, the
+ * timer periods that elapsed while an iteration was still running, and the
+ * control task's free stack. In bench mode, also the joint-ticks on which the
+ * safety gate would have energised a joint (CONFIG_PS_LIMB_BENCH). */
+typedef struct {
+    uint32_t max_exec_us;
+    uint32_t missed_ticks;
+    uint32_t stack_free_bytes;
+    uint32_t would_actuate_ticks;
+} limb_timing_t;
+void limb_control_timing(limb_timing_t *out);
+
 /* ---- comms_task.c: CAN plane in/out, counters, micro-ROS entities ---- */
 esp_err_t limb_comms_start(ps_can_handle_t can, uint8_t node_id);  /* core 0, prio 12 */
 

@@ -512,3 +512,39 @@ bus at any of them. Each board prints its rate in the boot banner
 (`TWAI : ... @ 500000 bit/s`), and **both must match** — a rate mismatch between
 the two boards looks exactly like a wiring fault. Go back to 1 Mbps afterwards;
 it is the contract rate, and the bus budget in `network-map.md` §10 assumes it.
+
+## A.6 The real limb firmware, on the same bench
+
+`node_bench` is a stand-in. Once A.5 passes, the limb board can run the actual
+`node_limb` firmware — the code an arm runs — in **bench mode** (`CONFIG_PS_LIMB_BENCH`):
+the motor driver, encoder SPI and current sense are not initialised, the joints read
+as at rest, and `joint_write()` counts the ticks on which the safety gate *would* have
+energised a joint instead of driving gates. Everything else is real: the 1 kHz control
+loop on core 1, its PIDs and FOC maths, `ps_safety`, the six 100 Hz TELEM streams on
+core 0, and the micro-ROS client if it is vendored. The orchestrator board keeps
+running `node_bench` as the heartbeat source; nothing is rewired.
+
+```bash
+BENCH_LIMB=1 bash firmware/tools/build_bench.sh
+```
+
+```powershell
+powershell -File firmware/tools/flash_bench.ps1 -Role limbapp -Port COM5
+& $py firmware/tools/read_console.py COM5 --seconds 30
+```
+
+Every 10 s it logs a status line and a timing line:
+
+```
+node_limb: state=2 ticks=... cmd[ok=.. rej=.. mode=..] can[rx=.. tx=.. drop=.. err=..]
+node_limb: timing: loop max ... us, missed ticks ..., ctrl stack free ... B, would-actuate ...
+```
+
+`loop max` is the worst single control iteration against a 1,000 µs period; `missed
+ticks` counts periods that elapsed while an iteration was still running; `would-actuate`
+stays 0 until something commands a joint out of PASSIVE.
+
+**Why bench mode exists at all:** `board_limb.h`'s pin map cannot run on this board —
+GPIO 22–25 do not exist on the ESP32-S3, 35–37 are the PSRAM on N16R8, and the pin
+budget does not close (note at the top of `board_limb.h`). `flash_bench.ps1` refuses a
+`node_limb` image without bench mode for exactly that reason.

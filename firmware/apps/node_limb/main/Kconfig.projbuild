@@ -30,4 +30,31 @@ menu "Powersuit node_limb Configuration"
             used verbatim as the CAN source address and to pick the board
             table / micro-ROS node name in app_main.c.
 
+    config PS_LIMB_BENCH
+        bool "Bench mode: no motor driver, encoders or current sense"
+        default n
+        help
+            Runs the real limb firmware on a bare DevKitC-1 with only a CAN
+            transceiver attached (docs/bringup.md Appendix A). The motor driver
+            (MCPWM), encoder SPI and ADC are not initialised: the joints read as
+            at rest with zero current, and joint_write() counts the ticks on
+            which the safety gate WOULD have energised a joint instead of driving
+            gates. Everything else is the real code: the 1 kHz control loop on
+            core 1, PIDs and FOC maths, ps_safety, 100 Hz TELEM on core 0, the
+            IMU on I2C (allowed to be absent).
+
+            Needed because board_limb.h's pin map cannot run on this board: it
+            assigns GPIO 22-25, which do not exist on the ESP32-S3, and 35-37,
+            the octal PSRAM on N16R8 (see the note at the top of board_limb.h).
+
+    config PS_LIMB_BENCH_CAN_TX_GPIO
+        int "Bench TWAI TX GPIO"
+        depends on PS_LIMB_BENCH
+        default 4
+
+    config PS_LIMB_BENCH_CAN_RX_GPIO
+        int "Bench TWAI RX GPIO"
+        depends on PS_LIMB_BENCH
+        default 5
+
 endmenu

@@ -14,7 +14,17 @@
  * Joints per limb (local index, network-map.md section 1): arms
  * 0=elbow/1=wrist, legs 0=hip/1=knee. Each joint gets its own MCPWM group
  * (ESP32-S3 has exactly SOC_MCPWM_GROUPS = 2, ps_focdrv.h) so group_id == joint
- * index throughout this file. */
+ * index throughout this file.
+ *
+ * KNOWN DEFECT (found 2026-10-16, docs/bench-log.md): this map cannot run on an
+ * ESP32-S3 DevKitC-1 N16R8. Joint 0's gates use GPIO 22-25, which do not exist
+ * on the S3 (it has 0-21 and 26-48), so ps_focdrv_init() fails at boot; joint
+ * 1's use 35-37, the octal PSRAM on R8 parts, and 38, the v1.1 LED. And the pin
+ * budget does not close: two 6-gate FOC joints plus current sense, strain, IMU,
+ * encoder SPI and CAN want 29 signals against 23 safe GPIOs on the DevKit's
+ * headers. Fixing it is a hardware decision (3-PWM gate drivers, fewer sensors,
+ * a second MCU, or servos on the cosplay path), not a renumbering. Until then,
+ * CONFIG_PS_LIMB_BENCH runs everything but the motor hardware. */
 #pragma once
 
 #include <stdint.h>
@@ -25,8 +35,13 @@
 #define PS_LIMB_JOINT_COUNT 2
 
 /* ---- CAN (TWAI controller 0, contract 1 Mbps) ---- */
+#if CONFIG_PS_LIMB_BENCH
+#define PS_BOARD_CAN_TX_GPIO CONFIG_PS_LIMB_BENCH_CAN_TX_GPIO   /* as the bench is wired */
+#define PS_BOARD_CAN_RX_GPIO CONFIG_PS_LIMB_BENCH_CAN_RX_GPIO
+#else
 #define PS_BOARD_CAN_TX_GPIO 17
 #define PS_BOARD_CAN_RX_GPIO 18
+#endif
 
 /* ---- Phase-current sense, ADC1 (GPIO1..8), joint0 then joint1 ---- */
 #define PS_BOARD_ADC_J0_IA   ADC_CHANNEL_0   /* GPIO1 */
