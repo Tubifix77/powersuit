@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bench Wiring</title>
+<style>
+:root {
+  --bg: #f7f6f2; --card: #ffffff; --fg: #1d1d1b; --muted: #66645e; --border: #d9d6cc;
+  --board: #1f5f3f; --board-fg: #e8f3ec; --module: #1b4f8a; --module-fg: #e6eefa;
+  --pin: #c9b26a; --pin-off: #8a8a80;
+  --w-tx: #7048e8; --w-rx: #1d6fd1; --w-gnd: #111111; --w-pwr: #e03131; --w-h: #f2b600; --w-l: #2b8a3e;
+  --warn-bg: #fff1e6; --warn-fg: #8a2d00; --bad: #c92a2a; --bad-bg: #ffe8e8; --hl: #fff3bf;
+  --ok-bg: #e9f7ef; --ok-fg: #1d5c3a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161614; --card: #21211e; --fg: #ecebe6; --muted: #a9a79f; --border: #3a3935;
+    --board: #1c4a33; --board-fg: #dcefe3; --module: #1d3f66; --module-fg: #dbe7f7;
+    --pin: #d8c27a; --pin-off: #6e6e66;
+    --w-tx: #b197fc; --w-rx: #5aa2ff; --w-gnd: #e9ecef; --w-pwr: #ff6b6b; --w-h: #ffd43b; --w-l: #69db7c;
+    --warn-bg: #3a2414; --warn-fg: #ffc59e; --bad: #ff6b6b; --bad-bg: #3a1a1a; --hl: #4a4220;
+    --ok-bg: #16301f; --ok-fg: #a8e6bf;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161614; --card: #21211e; --fg: #ecebe6; --muted: #a9a79f; --border: #3a3935;
+  --board: #1c4a33; --board-fg: #dcefe3; --module: #1d3f66; --module-fg: #dbe7f7;
+  --pin: #d8c27a; --pin-off: #6e6e66;
+  --w-tx: #b197fc; --w-rx: #5aa2ff; --w-gnd: #e9ecef; --w-pwr: #ff6b6b; --w-h: #ffd43b; --w-l: #69db7c;
+  --warn-bg: #3a2414; --warn-fg: #ffc59e; --bad: #ff6b6b; --bad-bg: #3a1a1a; --hl: #4a4220;
+  --ok-bg: #16301f; --ok-fg: #a8e6bf;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; }
+h2 { font-size: 1.15rem; margin: 28px 0 8px; }
+p.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.diagram { overflow-x: auto; }
+svg { display: block; width: 100%; height: auto; min-width: 680px; }
+svg text { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+.warn { background: var(--warn-bg); color: var(--warn-fg); border-radius: 10px; padding: 12px 16px; margin: 16px 0; }
+.bad { background: var(--bad-bg); color: var(--bad); border-radius: 10px; padding: 12px 16px; margin: 16px 0; }
+.ok { background: var(--ok-bg); color: var(--ok-fg); border-radius: 10px; padding: 12px 16px; margin: 16px 0; }
+.bad ul, .warn ul { margin: 6px 0 0; padding-left: 20px; }
+code, .k { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; background: var(--hl); padding: 0 4px; border-radius: 4px; }
+pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-size: 0.9rem; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.sw { display: inline-block; width: 22px; height: 4px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+.sw.dash { background: repeating-linear-gradient(90deg, var(--w-gnd) 0 6px, transparent 6px 10px) !important; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; color: var(--muted); font-size: 0.9rem; }
+ol li { margin-bottom: 6px; }
+.src { color: var(--muted); font-size: 0.85rem; margin-top: 24px; }
+</style>
+</head>
+<body>
+<main>
+<h1>The two-board bench: B is the orchestrator, C is the limb</h1>
+<p class="sub">For <code>docs/bringup.md</code> Appendix A. Each board gets one SN65HVD230 transceiver module
+(four wires), the two modules are joined by two more, and one wire ties the two boards' grounds together.
+Boards B and C keep their own USB cables, on the <span class="k">COM</span> socket. Board A and its serial
+adapter are not part of this.</p>
+
+<div class="bad">
+<strong>Five rules.</strong>
+<ul>
+<li>Use the board pins printed <span class="k">3V3</span>, <span class="k">4</span>, <span class="k">5</span> and <span class="k">G</span> on header J1 (3V3 at the antenna end), plus the <span class="k">G</span> at the top of header J3 for the ground tie.</li>
+<li>Board <span class="k">4</span> → module <span class="k">TX</span>, board <span class="k">5</span> → module <span class="k">RX</span>. <strong>Straight, not crossed.</strong> The module's TX pin is its transmitter's input; it takes what the ESP32 wants to send.</li>
+<li>The module's supply goes to the board's <span class="k">3V3</span>. Never to <span class="k">5V</span>.</li>
+<li>Match every wire by its <strong>printed label</strong>, never by counting positions.</li>
+<li>Wire with B and C unplugged, then plug them back in.</li>
+</ul>
+</div>
+
+<div class="card diagram">
+<svg viewBox="0 0 760 600" role="img" aria-label="Boards B and C, each wired to a CAN transceiver module, the two modules joined CANH to CANH and CANL to CANL, and the two boards' J3 ground pins tied together">
+  <defs>
+    <style>
+      .lbl { font-size: 11px; fill: var(--board-fg); }
+      .lbl-hl { font-size: 12px; font-weight: 700; fill: var(--board-fg); }
+      .mlbl { font-size: 12px; font-weight: 700; fill: var(--module-fg); }
+      .num { font-size: 8px; fill: var(--board-fg); opacity: .6; }
+      .cap { font-size: 12px; fill: var(--muted); }
+    </style>
+  </defs>
+  <g id="pairB"></g>
+  <g id="pairC"></g>
+  <g id="bus"></g>
+  <g id="gtie"></g>
+</svg>
+<div class="legend">
+  <span><span class="sw" style="background:var(--w-pwr)"></span>3V3 → 3.3V</span>
+  <span><span class="sw" style="background:var(--w-gnd)"></span>G → GND</span>
+  <span><span class="sw" style="background:var(--w-tx)"></span>4 → TX</span>
+  <span><span class="sw" style="background:var(--w-rx)"></span>5 → RX</span>
+  <span><span class="sw" style="background:var(--w-h)"></span>CANH ↔ CANH</span>
+  <span><span class="sw" style="background:var(--w-l)"></span>CANL ↔ CANL</span>
+  <span><span class="sw dash"></span>G ↔ G, board to board</span>
+</div>
+</div>
+
+<div class="warn"><strong>Drawn as it sits on the bench:</strong> each board with its antenna up, USB
+down, header J1 on its left and J3 on its right; each module to the left of its board, turned 180° so its
+four-pin header faces the board. Seen from above, the module's right edge reads top to bottom TX, RX, GND,
+3.3V, and its far side CANL above CANH. The blue screw terminal carries CANH and CANL in parallel with
+the pins; either works for the bus, and leaving the terminal free lets you clamp meter probes on a live bus.</div>
+
+<h2>The wires, one table</h2>
+<table>
+<tr><th>#</th><th>from</th><th>to</th><th>note</th></tr>
+<tr><td>1</td><td>board B <span class="k">3V3</span> (J1 pin 1)</td><td>module B <span class="k">3.3V</span></td><td>power</td></tr>
+<tr><td>2</td><td>board B <span class="k">G</span> (J1 pin 22)</td><td>module B <span class="k">GND</span></td><td></td></tr>
+<tr><td>3</td><td>board B <span class="k">4</span> (J1 pin 4)</td><td>module B <span class="k">TX</span></td><td>straight</td></tr>
+<tr><td>4</td><td>board B <span class="k">5</span> (J1 pin 5)</td><td>module B <span class="k">RX</span></td><td>straight</td></tr>
+<tr><td>5–8</td><td colspan="2">the same four for board C and module C</td><td></td></tr>
+<tr><td>9</td><td>module B <span class="k">CANH</span></td><td>module C <span class="k">CANH</span></td><td>H to H</td></tr>
+<tr><td>10</td><td>module B <span class="k">CANL</span></td><td>module C <span class="k">CANL</span></td><td>L to L</td></tr>
+<tr><td>11</td><td>board B <span class="k">G</span> (J3 pin 1)</td><td>board C <span class="k">G</span> (J3 pin 1)</td><td>ground tie</td></tr>
+</table>
+<p>Eleven jumper wires, all female-female. No resistors: each module carries its own 120 Ω terminator,
+which is exactly right for a bus with two nodes, one at each end. Use the usual colours for the real
+jumpers — <strong>red</strong> for power, <strong>black</strong> for ground, yellow for CANH, green for
+CANL — so the finished bench is easy to check against this page.</p>
+<p><strong>Why wire 11.</strong> The module's header has a single GND pin and wire 2 already uses it, so
+the boards tie their grounds directly. Two boards on the same PC share ground through it anyway; but in
+the test, the orchestrator runs from the mains charger, whose output floats, and CAN needs a common
+reference. Any <span class="k">G</span> pin works — J3 pin 1 is simply the free one nearest the antenna.</p>
+
+<h2>What runs on them</h2>
+<ol>
+<li><strong>Build both roles</strong> (Docker must already be running — the script checks, and never starts it):
+<pre><code>bash firmware/tools/build_bench.sh</code></pre></li>
+<li><strong>Flash</strong> each board through its <span class="k">COM</span> socket. This replaces the sibling project's firmware on B and C:
+<pre><code>powershell -File firmware/tools/flash_bench.ps1 -Role orch -Port COM4
+powershell -File firmware/tools/flash_bench.ps1 -Role limb -Port COM5 -Monitor</code></pre></li>
+<li><strong>Move B to the charger.</strong> The orchestrator needs no console once flashed. C stays on the PC
+with its monitor open.</li>
+<li><strong>Watch C.</strong> Amber while B is off: STANDBY, no heartbeat, no authority. Plug B's charger in:
+within a few hundred milliseconds C pulses white-blue, OPERATIONAL.</li>
+<li><strong>Pull B's charger lead.</strong> C must go amber within 50 ms and log
+<code>&gt;&gt;&gt; 2 -&gt; 3 (cause 6)</code> — OPERATIONAL to PASSIVE, cause COMM_LOSS. That is the dead-man switch.</li>
+</ol>
+
+<div class="bad"><strong>Do not open B's console during the test.</strong> Opening a board's serial port resets
+it (the DTR/RTS auto-reset wiring), so the beats stop and C trips — for the wrong reason, looking exactly
+like the test passing. To watch a board that is already running, use
+<code>esp_idf_monitor --no-reset</code>.</div>
+
+<div class="ok"><strong>If C never reaches OPERATIONAL,</strong> read C's 2-second status line:
+<code>rx_frames</code> at zero means wiring (TX/RX swapped is the usual one); <code>bus_errors</code>
+climbing with wiring checked twice means try a lower rate on <em>both</em> boards —
+<code>BENCH_CAN_BITRATE=500000 bash firmware/tools/build_bench.sh</code>, the rate measured clean on these
+modules. Both boards print their rate at boot, and the two must match.</div>
+
+<p class="src">Drawing adapted, with the owner's permission, from the sibling project's
+<code>potluck/bench/m4-can-wiring.html</code>, which wired the same boards and modules the same way for its own
+CAN test. Board pins: Espressif, ESP32-S3-DevKitC-1 v1.1 user guide; J1 positions 1 = 3V3, 4 = GPIO4,
+5 = GPIO5, 22 = G, and J3 position 1 = G, as recorded in the sibling's bench datasheet and checked against
+board A's printed labels. Module pin order: read off the modules by the owner, 2026-10-04. TX = the
+transceiver's driver input (D), RX = its receiver output (R), per the module schematic. Firmware pins:
+<code>CONFIG_PS_BENCH_CAN_TX_GPIO=4</code>, <code>CONFIG_PS_BENCH_CAN_RX_GPIO=5</code>. Procedure:
+<code>docs/bringup.md</code> A.4–A.5; state of the bench: <code>docs/bench-log.md</code>.</p>
+</main>
+
+<script>
+(function () {
+  var NS = "http://www.w3.org/2000/svg";
+  function el(tag, a, t) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in a) e.setAttribute(k, a[k]);
+    if (t != null) e.textContent = t;
+    return e;
+  }
+  var J1 = ["3V3","3V3","RST","4","5","6","7","15","16","17","18","8","3","46","9","10","11","12","13","14","5V","G"];
+  var hot = {1: "w-pwr", 4: "w-tx", 5: "w-rx", 22: "w-gnd"};
+  var BOARDPIN = {"w-tx": 4, "w-rx": 5, "w-gnd": 22, "w-pwr": 1};
+  var busPins = {};
+  var tiePins = {};
+
+  var MOD = [["TX", "w-tx"], ["RX", "w-rx"], ["GND", "w-gnd"], ["3.3V", "w-pwr"]];  // as seen from above, pins facing the board
+  function pair(gid, name, role, port, y0) {
+    var g = document.getElementById(gid);
+    // board on the right: antenna at the top, USB at the bottom, J1 down its LEFT edge, J3 down its RIGHT
+    var bx = 360, bw = 200;
+    g.appendChild(el("rect", {x: bx, y: y0, width: bw, height: 270, rx: 8, fill: "var(--board)"}));
+    g.appendChild(el("text", {x: bx + 100, y: y0 + 16, "text-anchor": "middle", "class": "lbl-hl"}, "antenna"));
+    g.appendChild(el("text", {x: bx + 64, y: y0 + 112, "class": "lbl-hl"}, "Board " + name));
+    g.appendChild(el("text", {x: bx + 64, y: y0 + 128, "class": "lbl"}, role));
+    g.appendChild(el("text", {x: bx + 64, y: y0 + 144, "class": "lbl"}, port));
+    g.appendChild(el("text", {x: bx + 64, y: y0 + 160, "class": "num"}, "J1 left, J3 right"));
+    g.appendChild(el("rect", {x: bx + 60, y: y0 + 246, width: 32, height: 18, rx: 3, fill: "none", stroke: "var(--board-fg)"}));
+    g.appendChild(el("rect", {x: bx + 112, y: y0 + 246, width: 32, height: 18, rx: 3, fill: "none", stroke: "var(--board-fg)"}));
+    // Which socket is COM is not drawn: only the silkscreen says, so read it there.
+    g.appendChild(el("text", {x: bx + 128, y: y0 + 240, "text-anchor": "middle", "class": "num"}, "USB-C x2: use COM"));
+    var pinY = {};
+    J1.forEach(function (lab, i) {
+      var n = i + 1, y = y0 + 22 + i * 10.4, isHot = !!hot[n];
+      pinY[n] = y;
+      g.appendChild(el("rect", {x: bx + 6, y: y - 4, width: 9, height: 9, rx: 1.5,
+        fill: isHot ? "var(--pin)" : "var(--pin-off)", stroke: isHot ? "var(--fg)" : "none", "stroke-width": isHot ? 1.5 : 0}));
+      g.appendChild(el("text", {x: bx + 22, y: y + 4, "class": isHot ? "lbl-hl" : "lbl"}, lab));
+    });
+    // J3 down the right edge: only pin 1 (G) is used, for the ground tie
+    for (var i = 0; i < 22; i++) {
+      var y = y0 + 22 + i * 10.4, isG = (i === 0);
+      g.appendChild(el("rect", {x: bx + bw - 15, y: y - 4, width: 9, height: 9, rx: 1.5,
+        fill: isG ? "var(--pin)" : "var(--pin-off)", stroke: isG ? "var(--fg)" : "none", "stroke-width": isG ? 1.5 : 0}));
+      if (isG) {
+        g.appendChild(el("text", {x: bx + bw - 21, y: y + 4, "text-anchor": "end", "class": "lbl-hl"}, "G"));
+        tiePins[name] = {x: bx + bw - 6, y: y};
+      }
+    }
+    // module on the left, turned 180 degrees: control pins face the board, bus pins face away
+    var mx = 60, mw = 170, my = y0 + 60;
+    g.appendChild(el("rect", {x: mx, y: my, width: mw, height: 140, rx: 8, fill: "var(--module)"}));
+    g.appendChild(el("text", {x: mx + mw / 2, y: my + 20, "text-anchor": "middle", "class": "mlbl"}, "module " + name));
+    var mY = {};
+    MOD.forEach(function (m, i) {
+      var y = my + 44 + i * 22;
+      mY[m[1]] = y;
+      g.appendChild(el("rect", {x: mx + mw - 5, y: y - 5, width: 10, height: 10, rx: 2, fill: "var(--pin)"}));
+      g.appendChild(el("text", {x: mx + mw - 12, y: y + 4, "text-anchor": "end", "class": "mlbl"}, m[0]));
+    });
+    [["CANL", "w-l", 0], ["CANH", "w-h", 1]].forEach(function (b) {
+      var y = my + 60 + b[2] * 30;
+      g.appendChild(el("rect", {x: mx - 5, y: y - 5, width: 10, height: 10, rx: 2, fill: "var(--pin)"}));
+      g.appendChild(el("text", {x: mx + 12, y: y + 4, "class": "mlbl"}, b[0]));
+      busPins[name + b[0]] = {x: mx - 5, y: y, color: b[1]};
+    });
+    // four wires module -> board
+    MOD.forEach(function (m, i) {
+      var bp = BOARDPIN[m[1]], ys = mY[m[1]], ye = pinY[bp];
+      var midx = 262 + i * 20;
+      g.appendChild(el("path", {d: "M " + (mx + mw + 5) + " " + ys + " L " + midx + " " + ys + " L " + midx + " " + ye + " L " + (bx + 6) + " " + ye,
+        fill: "none", stroke: "var(--" + m[1] + ")", "stroke-width": 2.5}));
+    });
+  }
+  pair("pairB", "B", "orchestrator", "COM4", 20);
+  pair("pairC", "C", "limb", "COM5", 318);
+
+  var g = document.getElementById("bus");
+  ["CANH", "CANL"].forEach(function (k, i) {
+    var a = busPins["B" + k], b = busPins["C" + k], x = 36 - i * 18;
+    g.appendChild(el("path", {d: "M " + a.x + " " + a.y + " L " + x + " " + a.y + " L " + x + " " + b.y + " L " + b.x + " " + b.y,
+      fill: "none", stroke: "var(--" + a.color + ")", "stroke-width": 3}));
+  });
+  g.appendChild(el("text", {x: 60, y: 302, "class": "cap"}, "the bus, on the far side: H to H, L to L"));
+
+  // wire 11: J3 G on B to J3 G on C, round the boards' right side
+  var t = document.getElementById("gtie"), a = tiePins.B, b = tiePins.C, x = 610;
+  t.appendChild(el("path", {d: "M " + a.x + " " + a.y + " L " + x + " " + a.y + " L " + x + " " + b.y + " L " + b.x + " " + b.y,
+    fill: "none", stroke: "var(--w-gnd)", "stroke-width": 2.5, "stroke-dasharray": "7 4"}));
+  t.appendChild(el("text", {x: x + 8, y: (a.y + b.y) / 2, "class": "cap"}, "ground tie"));
+  t.appendChild(el("text", {x: x + 8, y: (a.y + b.y) / 2 + 15, "class": "cap"}, "(wire 11)"));
+})();
+</script>
+</body>
+</html>
