@@ -11,8 +11,8 @@ the *record*. Update it when something is verified, not when it is planned.
 | Hardware | **Arrived.** Verified on the real units by the sibling project (Potluck). |
 | Boards right now | **In use by Potluck.** All three on the PC's USB ports; the CP2102 on board A and the PC |
 | CAN | **No transceivers attached.** They were wired to B and C for Potluck's CAN tests, then removed so B and C could be placed apart in the room for radio tests. A physical tether, not an electrical problem |
-| Powersuit on silicon | **Nothing yet.** No Powersuit image has been flashed to any board. |
-| Images | **Both `node_bench` roles built and verified** (2026-10-01) — `bash firmware/tools/build_bench.sh` |
+| Powersuit on silicon | **Board C runs the CAN self-test, all checks passing** (2026-10-16). A and B still run Potluck |
+| Images | Self-test built and on C. Both `node_bench` roles need a rebuild before flashing: the ones on disk predate `ps_can_txq` |
 | Next | Powersuit has the bench (2026-10-16). First the one-board CAN self-test on C, no wiring ([bringup.md](bringup.md) §2); then wire B and C per [A.4](bringup.md), flash both roles ([A.4d](bringup.md)), run [A.5](bringup.md) |
 
 ### Powersuit's bench, when it is Powersuit's turn
@@ -170,15 +170,44 @@ measured / owner / seller / datasheet) and its CAN session log are the sources. 
 | The CP2102 dongle back-powers through its signal lines if left wired to a board while unplugged | Potluck only | Not used by Powersuit |
 | Console at 115200; reading at the wrong rate shows nothing at all | A.4d | `node_bench` uses 115200, which esp-idf-monitor defaults to |
 
+## First Powersuit firmware on silicon — 2026-10-16
+
+Board C, `node_bench` in CAN self-test mode ([bringup.md](bringup.md) §2): the TWAI
+controller in self-test + loopback at 1 Mbit/s, RX on the TX pin, no transceiver.
+Flashed from the host with `flash_bench.ps1` (A.4d, first run: every image hash
+verified), read with `read_console.py`. Log: `.verify-logs/selftest_C.log`.
+
+| Check | Result |
+|---|---|
+| basic | 200/200 frames out and back; 0 bus errors, 0 drops, 0 refused |
+| **order** | **All 13 queued before any left: SAFETY came back 1st.** In arrival order — the driver's own FIFO — it would have been 13th. `ps_can_txq` confirmed on silicon |
+| fifo | 12/12 TELEM frames back in the order sent |
+| order_concurrent | 2 frames back when SAFETY was queued; SAFETY came back 4th — those two, the one on the wire, then SAFETY |
+| latency, idle | SAFETY send-to-receive 201–218 µs over 50 frames |
+| latency, behind 12 queued TELEM | 268–284 µs over 20 runs: about two frame times, where the FIFO inversion would have cost ~1.7 ms |
+| totals | 536 frames sent and received; 0 rx_dropped, 0 tx_timeouts, 0 bus_errors |
+
+**The first run failed one check, and the test was wrong, not the firmware.** It assumed
+twelve `ps_can_send` calls finish before the first frame does. They do not: each wakes
+the higher-priority transmit task, so queuing takes about three frame times and two or
+three TELEM frames genuinely leave first. SAFETY came back 4th, having overtaken
+everything still waiting — correct behaviour, judged against the wrong number. Rather
+than loosen the bound, the test was made decisive (the test task briefly outranks the
+transmit task on the same core, so all thirteen are queued before any leaves: SAFETY
+must be first, with no tolerance), and the realistic concurrent case kept as its own
+check with a bound computed from what had actually left.
+
+Also shown by this run: host flashing works (bootloader, partition table and app, 3.4 s
+for the app), Powersuit firmware boots on these boards, and `read_console.py` captures
+a board from boot. Not shown: anything on a real bus — loopback has no transceiver, no
+second node, and no arbitration.
+
 ## Not yet verified
 
 - **RGB LED pin** — GPIO38 (v1.1) or GPIO48 (v1.0). Potluck's firmware never
   drives the LED, so nothing was learned. Use the [A.3](bringup.md) probe mode.
 - **1 Mbps on real wire.** The datasheet says it is in spec; the bench has not
   shown it yet. `bus_errors` in A.5 is the first evidence either way.
-- **The [A.4d](bringup.md) flash sequence** onto a board. Checked without one: the
-  script's dry run, its wrong-role guard, and esptool accepting every generated
-  argument (it failed only at opening a nonexistent port).
 - **Everything in [A.5](bringup.md)** — above all the dead-man switch, which is the
   reason this bench exists.
 
@@ -186,6 +215,7 @@ measured / owner / seller / datasheet) and its CAN session log are the sources. 
 
 | Date | Event |
 |---|---|
+| 2026-10-16 | Powersuit owns the bench. **First Powersuit firmware on silicon:** CAN self-test on C, all seven checks pass; SAFETY overtakes a 12-frame queue (1st, not 13th). A and B still on Potluck |
 | 2026-09-21 | Ordered — DKK 408 landed, AliExpress ([A.1](bringup.md)) |
 | 2026-10-01 | Arrived. Potluck verified silicon, security state, bridge chip and pins; backed up factory images; started a 24 h soak (~19:20) |
 | 2026-10-01 | Both `node_bench` roles built in Docker and role-verified; host flash script dry-run checked. No board touched |

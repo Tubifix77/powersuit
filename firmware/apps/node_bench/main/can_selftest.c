@@ -128,32 +128,45 @@ static void check_basic(void)
            s_n, N_BASIC, tx, err, drop, refused);
 }
 
-/* SAFETY queued behind N_QUEUED TELEM frames must overtake them. */
-static void check_order(void)
+/* Queue N_QUEUED TELEM frames, then one SAFETY frame; return the SAFETY frame's
+ * 0-based position among what came back, and how many frames had already come back
+ * when it was queued. -1 on a refusal or timeout. */
+static int queue_and_find_safety(uint32_t *back_before)
 {
     vTaskDelay(pdMS_TO_TICKS(20));          /* all slots free, nothing in flight */
     s_n = 0;
-    int refused = 0;
     for (int i = 0; i < N_QUEUED; i++) {
         if (send(PS_CLS_TELEM, PS_T_JOINT_STATE, (uint8_t)i, 0) != ESP_OK) {
-            refused++;
+            return -1;
         }
     }
+    *back_before = s_n;
     if (send(PS_CLS_SAFETY, PS_T_HEARTBEAT, 0xAA, 0) != ESP_OK) {
-        refused++;
+        return -1;
     }
-    bool all = wait_rx(N_QUEUED + 1, 500);
-    int pos = safety_pos(N_QUEUED + 1);
+    return wait_rx(N_QUEUED + 1, 500) ? safety_pos(N_QUEUED + 1) : -1;
+}
 
-    /* At most the frame already on the wire, plus one the transmit task may have
-     * started before the SAFETY frame was queued, can leave ahead of it. */
-    report(all && refused == 0 && pos >= 0 && pos <= 2, "order",
-           "SAFETY came back at position %d of %d (in arrival order it would be %d)",
-           pos + 1, N_QUEUED + 1, N_QUEUED + 1);
+/* A SAFETY frame queued behind N_QUEUED TELEM frames must overtake them. */
+static void check_order(void)
+{
+    /* Decisive case: run above ps_can's transmit task, so nothing can leave until
+     * all thirteen frames are queued. The transmit task shares core 0 with this
+     * one; on another core it could start early and the case would not be clean. */
+    uint32_t back = 0;
+    int core = xPortGetCoreID();
+    UBaseType_t prio = uxTaskPriorityGet(NULL);
+    vTaskPrioritySet(NULL, configMAX_PRIORITIES - 1);
+    int pos = queue_and_find_safety(&back);
+    vTaskPrioritySet(NULL, prio);
+    report(pos == 0 && back == 0 && core == 0, "order",
+           "all %d queued before any left: SAFETY came back at position %d "
+           "(in arrival order it would be %d; core %d)",
+           N_QUEUED + 1, pos + 1, N_QUEUED + 1, core);
 
     /* The TELEM frames themselves must keep their order: FIFO within a class. */
     int expect = 0;
-    bool fifo = all;
+    bool fifo = pos >= 0;
     for (uint32_t i = 0; i < (uint32_t)(N_QUEUED + 1) && i < LOG_MAX; i++) {
         if (s_log[i].cls != PS_CLS_TELEM) {
             continue;
@@ -166,6 +179,16 @@ static void check_order(void)
     }
     report(fifo && expect == N_QUEUED, "fifo",
            "%d of %d TELEM frames back in the order sent", expect, N_QUEUED);
+
+    /* Realistic case: the transmit task runs while frames are being queued, so some
+     * leave before SAFETY is queued. SAFETY may follow only those, the one on the
+     * wire when it arrived, and one more that can start in the microseconds between
+     * counting and queuing — it must overtake everything else still waiting. */
+    pos = queue_and_find_safety(&back);
+    report(pos >= 0 && (uint32_t)pos <= back + 2, "order_concurrent",
+           "%" PRIu32 " back before SAFETY was queued; SAFETY came back at position %d "
+           "(may be at most %" PRIu32 "; in arrival order %d)",
+           back, pos + 1, back + 3, N_QUEUED + 1);
 }
 
 /* Send-to-receive time for one SAFETY frame. Loopback receives a frame when its
