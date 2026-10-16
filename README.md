@@ -7,12 +7,14 @@ Distributed firmware and software for a nine-node cybernetic exoskeleton: seven 
 edge nodes on two isolated CAN buses, a Raspberry Pi 5 class orchestrator running ROS 2,
 and a GPU cloud service reachable over 5G.
 
-> **Status: builds and simulates; has never run on hardware.**
+> **Status: the dead-man switch works on real hardware; the suit has never run.**
 > Every tier compiles and its logic is tested — 253 Python tests, 12 C suites under
 > `-Werror`, five firmware images, a ROS 2 workspace, and ten end-to-end scenarios
-> against a simulated suit. Nothing below the driver layer has touched silicon.
-> Bench hardware arrived on 2026-10-01 and is verified as genuine ESP32-S3 N16R8;
-> the first Powersuit flash is pending. Current state: [`docs/bench-log.md`](docs/bench-log.md).
+> against a simulated suit. On silicon so far: a two-board bench (2026-10-16) — pull
+> the orchestrator's power and the limb drops to Passive Compliance, re-arming only
+> after 250 ms of fresh heartbeats, over real CAN at 1 Mbit/s with zero errors. No
+> actuator, hub, SPI link or orchestrator computer has run yet.
+> Current state: [`docs/bench-log.md`](docs/bench-log.md).
 > See [Verified vs unproven](#verified-vs-unproven).
 
 The system specification is [`ARCHITECTURE.md`](ARCHITECTURE.md). The *normative engineering
@@ -207,6 +209,7 @@ machine that applies force to a human body.
 | Pure C firmware logic | 12 suites under `-Wall -Wextra -Werror` — FOC maths, Mahony filter, safety state machine, CAN routing, CAN transmit order, ADPCM |
 | Firmware images | All four suit apps build for ESP32-S3/P4, with and without micro-ROS, plus the `node_bench` image for the two-board bench |
 | Whole-suit behaviour | 10 scenarios: watchdog trip and re-arm timing, e-stop propagation and replay rejection, SPI corruption recovery, voice round-trip, link failover, local-beats-cloud ordering |
+| On silicon (two-board bench) | ESP32-S3 boards over real CAN at 1 Mbit/s: the dead-man switch trips on heartbeat loss and re-arms after the 250 ms window; in loopback, a SAFETY frame overtakes a 12-frame queue (first, not 13th). See `docs/bench-log.md` |
 | On-target (QEMU) | 27 checks on emulated ESP32-S3: packed-struct access on Xtensa, single-precision FPU, dual-core scheduling, stack headroom, watchdog timing against real elapsed time |
 | Static analysis | `cppcheck` clean |
 

@@ -1,7 +1,9 @@
 # Hardware bring-up
 
-Everything in this repository has been compiled and its logic tested, but no
-part of it has run on silicon. What follows is the order to prove it in, chosen
+Everything in this repository has been compiled and its logic tested. On silicon so
+far: only the two-board bench of Appendix A, where the dead-man switch works
+(2026-10-16, [bench-log.md](bench-log.md)). What follows is the order to prove the
+rest in, chosen
 so that each step is verifiable before anything above it can hurt you.
 
 The governing rule: **a motor is the last thing you energise, not the first.**
@@ -499,11 +501,11 @@ BENCH_CAN_BITRATE=500000 bash firmware/tools/build_bench.sh    # measured clean 
 BENCH_CAN_BITRATE=250000 bash firmware/tools/build_bench.sh    # last resort
 ```
 
-500 kbit/s first, because it is the one rate with evidence behind it: the sibling
-project ran these exact transceivers and boards there with zero bit, form or stuff
-errors under a 3,000 frames/s flood. 1 Mbps is in spec per TI's datasheet (see
-[bench-log.md](bench-log.md)) but has not run on this bench yet; 250 kbit/s has not
-run either. The dead-man test needs about 100 frames a second, a few percent of the
+1 Mbit/s ran clean on this bench on 2026-10-16 (zero errors over two minutes of the
+dead-man test, [bench-log.md](bench-log.md)), so a fallback should only be needed
+after a wiring change. 500 kbit/s first, because the sibling project ran these exact
+transceivers and boards there with zero bit, form or stuff errors under a 3,000
+frames/s flood; 250 kbit/s has not run here at all. The dead-man test needs about 100 frames a second, a few percent of the
 bus at any of them. Each board prints its rate in the boot banner
 (`TWAI : ... @ 500000 bit/s`), and **both must match** — a rate mismatch between
 the two boards looks exactly like a wiring fault. Go back to 1 Mbps afterwards;

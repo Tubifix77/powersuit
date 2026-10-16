@@ -11,7 +11,7 @@ the *record*. Update it when something is verified, not when it is planned.
 | Hardware | **Arrived.** Verified on the real units by the sibling project (Potluck). |
 | Boards right now | **In use by Potluck.** All three on the PC's USB ports; the CP2102 on board A and the PC |
 | CAN | **No transceivers attached.** They were wired to B and C for Potluck's CAN tests, then removed so B and C could be placed apart in the room for radio tests. A physical tether, not an electrical problem |
-| Powersuit on silicon | **Board C runs the CAN self-test, all checks passing** (2026-10-16). A and B still run Potluck |
+| Powersuit on silicon | **The dead-man switch works on the two-board bench** (2026-10-16). B is the orchestrator, C the limb, wired per [`bench-wiring.html`](bench-wiring.html); A still runs Potluck |
 | Images | Self-test built and on C. Both `node_bench` roles need a rebuild before flashing: the ones on disk predate `ps_can_txq` |
 | Next | Powersuit has the bench (2026-10-16). First the one-board CAN self-test on C, no wiring ([bringup.md](bringup.md) §2); then wire B and C per [A.4](bringup.md), flash both roles ([A.4d](bringup.md)), run [A.5](bringup.md) |
 
@@ -207,19 +207,61 @@ for the app), Powersuit firmware boots on these boards, and `read_console.py` ca
 a board from boot. Not shown: anything on a real bus — loopback has no transceiver, no
 second node, and no arbitration.
 
+## The dead-man switch, on silicon — 2026-10-16
+
+[bringup.md](bringup.md) A.5. B runs `node_bench` as the orchestrator (COM4), C as the
+limb (COM5), both on the PC's USB, wired per [`bench-wiring.html`](bench-wiring.html)
+at 1 Mbit/s. C's console recorded from boot for two minutes
+(`.verify-logs/deadman_C.log`) while the owner pulled B's USB cable and plugged it back
+in, watching C's LED.
+
+| Step | Owner saw on C | C logged | |
+|---|---|---|---|
+| 1 boot, B already beating | white-blue pulse | `0 -> 1` at 101 ms, `1 -> 2` (OPERATIONAL) at 307 ms | ✓ |
+| running ~60 s | white-blue pulse | ~102 frames/s (100 Hz heartbeat + 1 Hz MODE_SET), **0 errors** | ✓ |
+| 2 **B's USB pulled** | **amber at once** | **`2 -> 3 (cause 6)`** at 60,957 ms — OPERATIONAL to PASSIVE, cause COMM_LOSS | ✓ |
+| B absent ~16 s | amber | `rx` frozen at 6143, C silent, 0 errors | ✓ |
+| 3 **B plugged back in** | back to white-blue after about a second | **`3 -> 2`** at 77,522 ms | ✓ |
+| after | white-blue | steady, 0 errors, to the end of the capture | ✓ |
+
+**Timing, estimated from the receive counter** (frames arrive at a steady ~101.5/s, so
+the counter dates the last and first heartbeat to within about one frame period;
+nothing on the bench timestamps a beat directly):
+
+- **trip:** last heartbeat ≈ 60,902 ms, PASSIVE at 60,957 ms — **≈ 55 ms of silence**,
+  against the designed 50 ms watchdog.
+- **re-arm:** heartbeats resume ≈ 77,263 ms, OPERATIONAL at 77,522 ms — **≈ 259 ms**,
+  against the designed 250 ms of continuous beats plus a fresh command
+  ([safety.md](safety.md) §2).
+
+Both are consistent with the design; neither is an instrumented measurement. The
+GPIO-toggle-and-scope check in [bringup.md](bringup.md) §4 would make them one. C
+never transmits in this role (`tx=0`), so removing B cost C no acknowledgements: the
+trip came from the missing heartbeats alone, as its cause code says, not from a
+bus-off.
+
+**What this proves, and what it does not.** The safety state machine, `ps_safety`'s
+watchdog, `ps_can` with its new transmit path, and the CAN wiring all behave as
+specified on real silicon and real wire — the one behaviour Appendix A exists to
+prove. It is two nodes at 1 Mbit/s on 20 cm, with no actuator, no hub, no SPI and no
+load; everything above the dead-man switch in [bringup.md](bringup.md) is still
+unproven.
+
 ## Not yet verified
 
 - **RGB LED pin** — GPIO38 (v1.1) or GPIO48 (v1.0). Potluck's firmware never
   drives the LED, so nothing was learned. Use the [A.3](bringup.md) probe mode.
 - **1 Mbps on real wire.** The datasheet says it is in spec; the bench has not
   shown it yet. `bus_errors` in A.5 is the first evidence either way.
-- **Everything in [A.5](bringup.md)** — above all the dead-man switch, which is the
-  reason this bench exists.
+- **The dead-man timing as a measurement.** ≈ 55 ms and ≈ 259 ms above are estimates
+  from a frame counter; a GPIO toggle on the transition and a scope or logic analyser
+  would make them measurements ([bringup.md](bringup.md) §4).
 
 ## Log
 
 | Date | Event |
 |---|---|
+| 2026-10-16 | **The dead-man switch works on silicon.** B orchestrator, C limb, 1 Mbit/s, 0 errors. Pulling B: C to PASSIVE, cause COMM_LOSS, ≈ 55 ms after the last beat; plugging B back: OPERATIONAL ≈ 259 ms after beats resumed |
 | 2026-10-16 | Powersuit owns the bench. **First Powersuit firmware on silicon:** CAN self-test on C, all seven checks pass; SAFETY overtakes a 12-frame queue (1st, not 13th). C's LED steady green: both-pin drive works. A and B still on Potluck, red for C's departure |
 | 2026-09-21 | Ordered — DKK 408 landed, AliExpress ([A.1](bringup.md)) |
 | 2026-10-01 | Arrived. Potluck verified silicon, security state, bridge chip and pins; backed up factory images; started a 24 h soak (~19:20) |
