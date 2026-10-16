@@ -21,7 +21,7 @@ the *record*. Update it when something is verified, not when it is planned.
 clean on, and A keeps the CP2102 so Potluck's frame link is not disturbed. Each of B
 and C gets one transceiver wired per [A.4](bringup.md); A is not involved and needs
 no wires. The sibling project's drawing of this exact wiring, with the modules as
-they sit on the bench, is `D:\Projects\potluckench\m4-can-wiring.html`: the same
+they sit on the bench, is `D:\Projects\potluck\bench\m4-can-wiring.html`: the same
 ten wires as [A.4](bringup.md), plus the board-to-board ground A.4 adds. Flashing
 `node_bench` replaces Potluck's firmware on B and C; Potluck's own
 builds restore it afterwards, and the factory images are backed up by MAC.
