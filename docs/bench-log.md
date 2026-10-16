@@ -42,6 +42,13 @@ D:\Projects\potluck\tools\soak.ps1 -Status
 Under Potluck's firmware the BOOT button (GPIO0) makes a node leave its cluster. To give
 B and C back to Potluck, flash them with its own build.
 
+**Board B's NVS very probably holds the owner's house Wi-Fi credentials**, written there by
+the sibling Wi-Fi-extender project (namespace `pme`) and never erased. Flashing does not
+remove them: `flash_bench.ps1` writes only 0x0, 0x8000 and 0x10000, and NVS sits at 0x9000.
+**Never `read-flash`, dump or log B's flash or NVS.** Powersuit stores nothing in NVS, so
+erasing that region costs it nothing — whether to do so is the owner's decision:
+`<idf-python> -m esptool --port COM4 erase-region 0x9000 0x6000`.
+
 ## Board register
 
 Physical identity, which survives reflashing. The CH343 serial number identifies a board
