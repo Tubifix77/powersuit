@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-Flash a Docker-built node_bench role to a board from the Windows host.
+Flash a Docker-built node_bench role (or the one-board CAN self-test) to a board
+from the Windows host.
 
 .DESCRIPTION
 Docker Desktop on Windows cannot pass a COM port into a container, so node_bench
@@ -22,7 +23,7 @@ powershell -File firmware/tools/flash_bench.ps1 -Role orch -Port COM3 -DryRun
 Prints the commands it would run and opens no port.
 #>
 param(
-    [Parameter(Mandatory)] [ValidateSet('limb', 'orch')] [string] $Role,
+    [Parameter(Mandatory)] [ValidateSet('limb', 'orch', 'selftest')] [string] $Role,
     [Parameter(Mandatory)] [ValidatePattern('^COM\d+$')] [string] $Port,
     [switch] $Monitor,
     [switch] $DryRun,
@@ -38,9 +39,12 @@ $argsFile = Join-Path $build 'flasher_args.json'
 if (-not (Test-Path $argsFile)) {
     throw "no build in $build - run: bash firmware/tools/build_bench.sh"
 }
-$isOrch = Select-String -Path (Join-Path $build 'sdkconfig') -Pattern '^CONFIG_PS_BENCH_IS_ORCH=y$' -Quiet
-if ([bool]$isOrch -ne ($Role -eq 'orch')) {
-    throw "build_$Role\sdkconfig holds the WRONG role - rebuild with firmware/tools/build_bench.sh"
+$sdk    = Join-Path $build 'sdkconfig'
+$isSelf = [bool](Select-String -Path $sdk -Pattern '^CONFIG_PS_BENCH_SELFTEST=y$' -Quiet)
+$isOrch = [bool](Select-String -Path $sdk -Pattern '^CONFIG_PS_BENCH_IS_ORCH=y$' -Quiet)
+$wrong  = if ($Role -eq 'selftest') { -not $isSelf } else { $isSelf -or ($isOrch -ne ($Role -eq 'orch')) }
+if ($wrong) {
+    throw "build_$Role\sdkconfig holds the WRONG image - rebuild with firmware/tools/build_bench.sh"
 }
 
 # 2. A Python that has esptool: PS_IDF_PYTHON, else the newest ESP-IDF environment.

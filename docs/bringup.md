@@ -37,11 +37,30 @@ machine works.
 
 ## 2. TWAI in loopback, still one node
 
-Before wiring two boards together, prove the controller talks to itself. Set
-`enable_loopback` and `enable_self_test` in the `twai_onchip_node_config_t`
-inside `ps_can_open` (temporarily), and confirm transmitted frames come back
-through the class dispatch. This separates "my CAN driver is wrong" from "my
-wiring is wrong", which are otherwise indistinguishable at 3am.
+Before wiring two boards together, prove the controller talks to itself. This
+separates "my CAN driver is wrong" from "my wiring is wrong", which are otherwise
+indistinguishable at 3am. `node_bench` has a self-test mode for exactly this: the
+controller runs in self-test + loopback with RX on the TX pin, so it hears its own
+frames and needs no ACK — **no transceiver, no second board, no wires.**
+
+```bash
+BENCH_SELFTEST=1 bash firmware/tools/build_bench.sh
+```
+
+```powershell
+powershell -File firmware/tools/flash_bench.ps1 -Role selftest -Port COM5
+& $py firmware/tools/read_console.py COM5 --seconds 30 --until SELFTEST_DONE
+```
+
+It checks that 200 frames go out and come back with no errors; that a SAFETY frame
+queued behind twelve TELEM frames **overtakes** them (`ps_can_txq`, network-map §2 —
+in arrival order it would come back last); that frames within a class keep their
+order; and SAFETY's send-to-receive latency, idle and behind a queue. It ends with
+`SELFTEST_DONE OK 0` and a steady green LED, or `SELFTEST_DONE FAIL <n>` and a red
+strobe. `read_console.py` exits 0, 1 or 2 for pass, fail or timeout.
+
+Loopback with RX left on its own pin reads noise and goes bus-off: RX must share the
+TX pin, which the self-test does. Disconnect a transceiver if one is attached.
 
 ## 3. Two nodes on one segment
 

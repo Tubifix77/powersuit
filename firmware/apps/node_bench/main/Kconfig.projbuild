@@ -62,6 +62,20 @@ menu "Powersuit bench node"
             which is active over serial. Whichever makes the LED light is your
             revision. One-time diagnostic: turn it off afterwards.
 
+    config PS_BENCH_SELFTEST
+        bool "CAN self-test instead of a role (one board, no wiring)"
+        default n
+        help
+            Runs ps_can with the TWAI controller in self-test + loopback mode,
+            RX on the TX pin, so it hears its own frames and needs no ACK: no
+            transceiver, no second board. Checks that frames go out and come
+            back, that a SAFETY frame queued behind telemetry overtakes it, that
+            frames within a class keep their order, and the SAFETY latency.
+            Prints SELFTEST PASS/FAIL lines; the LED goes steady green on pass,
+            red strobe on fail. The role setting is ignored.
+
+            Build with: BENCH_SELFTEST=1 bash firmware/tools/build_bench.sh
+
     config PS_BENCH_CAN_TX_GPIO
         int "TWAI TX GPIO"
         default 4

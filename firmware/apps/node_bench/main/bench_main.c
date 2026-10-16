@@ -29,6 +29,7 @@
 #include "freertos/task.h"
 #include "led_strip.h"
 
+#include "can_selftest.h"
 #include "ps_can.h"
 #include "ps_safety.h"
 #include "powersuit_proto/can_id.h"
@@ -308,6 +309,20 @@ void app_main(void)
     }
 #endif
     paint_state(PS_STATE_BOOT, 0);
+
+#if CONFIG_PS_BENCH_SELFTEST
+    ESP_LOGW(TAG, "mode      : CAN SELF-TEST (no wiring, role ignored)");
+    bool ok = bench_can_selftest();
+    while (true) {
+        uint32_t t_ms = (uint32_t)(esp_timer_get_time() / 1000);
+        if (ok) {
+            led_set(0, 90, 0);                                    /* steady green: pass */
+        } else {
+            led_set(((t_ms / 100) % 2) ? 255 : 0, 0, 0);         /* red strobe: fail */
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+#endif
 
     ps_can_config_t can_cfg = {
         .controller = 0,

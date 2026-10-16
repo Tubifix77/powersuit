@@ -13,7 +13,7 @@ the *record*. Update it when something is verified, not when it is planned.
 | CAN | **No transceivers attached.** They were wired to B and C for Potluck's CAN tests, then removed so B and C could be placed apart in the room for radio tests. A physical tether, not an electrical problem |
 | Powersuit on silicon | **Nothing yet.** No Powersuit image has been flashed to any board. |
 | Images | **Both `node_bench` roles built and verified** (2026-10-01) — `bash firmware/tools/build_bench.sh` |
-| Next | When Powersuit gets the bench: wire B and C per [A.4](bringup.md), flash with `firmware/tools/flash_bench.ps1` ([A.4d](bringup.md)), run [A.5](bringup.md) |
+| Next | Powersuit has the bench (2026-10-16). First the one-board CAN self-test on C, no wiring ([bringup.md](bringup.md) §2); then wire B and C per [A.4](bringup.md), flash both roles ([A.4d](bringup.md)), run [A.5](bringup.md) |
 
 ### Powersuit's bench, when it is Powersuit's turn
 

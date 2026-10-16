@@ -4,6 +4,7 @@
 #
 #   bash firmware/tools/build_bench.sh
 #   BENCH_CAN_BITRATE=250000 bash firmware/tools/build_bench.sh   # fallback rate
+#   BENCH_SELFTEST=1 bash firmware/tools/build_bench.sh           # one-board CAN self-test
 #
 # Output: firmware/apps/node_bench/build_limb/ and build_orch/, on the bind mount
 # so the host can flash them (docs/bringup.md A.4d). The full build log goes to
@@ -28,8 +29,6 @@ docker info >/dev/null 2>&1 || { echo "docker is not running — start Docker De
 
 host_path() { echo "$1" | sed -e 's|^/\([a-z]\)/|\1:/|'; }
 
-rm -rf "$APP/build_limb" "$APP/build_orch"
-
 # Optional bitrate overlay, applied to BOTH roles: a rate mismatch between the
 # two boards is indistinguishable from a wiring fault. Lives beside the build
 # dirs so it is covered by .gitignore (build_*/).
@@ -44,6 +43,44 @@ if [ "$BITRATE" != 1000000 ]; then
 else
     rm -rf "$APP/build_overlay"
 fi
+
+# One-board CAN self-test: its own build directory, the role builds left alone.
+if [ "${BENCH_SELFTEST:-0}" = 1 ]; then
+    rm -rf "$APP/build_selftest"
+    mkdir -p "$APP/build_overlay"
+    echo "CONFIG_PS_BENCH_SELFTEST=y" > "$APP/build_overlay/selftest.defaults"
+    echo "== building node_bench CAN self-test (log: .verify-logs/bench_build.log)"
+    set +e
+    MSYS_NO_PATHCONV=1 docker run --rm \
+        -v "$(host_path "$REPO"):/ws" -v ps_ccache:/root/.ccache \
+        -e IDF_CCACHE_ENABLE=1 -e OVL="$OVL" -w "/ws/$APP" "$IDF_IMAGE" bash -c '
+            set -e
+            git config --global --add safe.directory "*" 2>/dev/null
+            idf.py -B build_selftest -D SDKCONFIG=build_selftest/sdkconfig \
+                -D SDKCONFIG_DEFAULTS="../../sdkconfig.defaults.common;sdkconfig.defaults$OVL;build_overlay/selftest.defaults" \
+                build' >"$LOG" 2>&1
+    rc=$?
+    set -e
+    if [ $rc -ne 0 ]; then
+        echo "BUILD FAILED (exit $rc). Errors:" >&2
+        grep -E "error:|CMake Error|FAILED:" "$LOG" | sort -u | head -20 >&2
+        exit 1
+    fi
+    fail=0
+    for want in "CONFIG_PS_BENCH_SELFTEST=y" "CONFIG_PS_CAN_BITRATE=$BITRATE"; do
+        if grep -qx "$want" "$APP/build_selftest/sdkconfig"; then echo "  ok   selftest: $want"
+        else echo "  FAIL selftest: expected '$want' in build_selftest/sdkconfig" >&2; fail=1; fi
+    done
+    for f in flasher_args.json node_bench.elf node_bench.bin; do
+        [ -f "$APP/build_selftest/$f" ] || { echo "  FAIL selftest: missing $f" >&2; fail=1; }
+    done
+    [ $fail -eq 0 ] || exit 1
+    echo "node_bench self-test built and verified"
+    echo "flash: powershell -File firmware/tools/flash_bench.ps1 -Role selftest -Port COMx -Monitor"
+    exit 0
+fi
+
+rm -rf "$APP/build_limb" "$APP/build_orch"
 
 echo "== building node_bench: limb, then orchestrator (log: .verify-logs/bench_build.log)"
 set +e

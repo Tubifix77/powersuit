@@ -382,6 +382,8 @@ esp_err_t ps_can_open(const ps_can_config_t *cfg, ps_can_handle_t *out)
     /* Bounded retries: a node that cannot get on the bus must not monopolise it
      * forever — the safety watchdog is the backstop, not infinite retransmission. */
     nc.fail_retry_cnt = 3;
+    nc.flags.enable_self_test = cfg->loopback;
+    nc.flags.enable_loopback = cfg->loopback;
 
     esp_err_t err = twai_new_node_onchip(&nc, &ctx->node);
     if (err != ESP_OK) {
@@ -426,9 +428,10 @@ esp_err_t ps_can_open(const ps_can_config_t *cfg, ps_can_handle_t *out)
         goto fail_enabled;
     }
 
-    ESP_LOGI(TAG, "controller %d up: %" PRIu32 " bps, tx=%d rx=%d, node_id=%u%s",
+    ESP_LOGI(TAG, "controller %d up: %" PRIu32 " bps, tx=%d rx=%d, node_id=%u%s%s",
              cfg->controller, nc.bit_timing.bitrate, cfg->tx_gpio, cfg->rx_gpio,
-             (unsigned)cfg->node_id, cfg->node_id == 0 ? " (promiscuous)" : "");
+             (unsigned)cfg->node_id, cfg->node_id == 0 ? " (promiscuous)" : "",
+             cfg->loopback ? " LOOPBACK SELF-TEST" : "");
     *out = ctx;
     return ESP_OK;
 

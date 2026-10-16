@@ -44,6 +44,10 @@ typedef struct {
     uint8_t  node_id;       /* accept dst == node_id or broadcast; 0 = promiscuous (gateway) */
     size_t   tx_queue_len;  /* unused: 16 frames, held in class order (ps_can_txq.h) */
     size_t   rx_queue_len;  /* 0 = default (64) */
+    bool     loopback;      /* self-test: the controller hears its own frames and
+                               needs no ACK, so one board with no transceiver works.
+                               Put rx_gpio on tx_gpio; a floating RX reads noise.
+                               Never on a real bus. */
 } ps_can_config_t;
 
 typedef struct ps_can_ctx *ps_can_handle_t;
