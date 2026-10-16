@@ -1,10 +1,11 @@
 # Hardware bring-up
 
 Everything in this repository has been compiled and its logic tested. On silicon so
-far: only the two-board bench of Appendix A, where the dead-man switch works
-(2026-10-16, [bench-log.md](bench-log.md)). What follows is the order to prove the
-rest in, chosen
-so that each step is verifiable before anything above it can hurt you.
+far: the two-board bench of Appendix A, where the dead-man switch, the actuation gate
+and the real limb firmware's control loop all work ([bench-log.md](bench-log.md)).
+What follows is the order to prove the rest in, chosen so that each step is verifiable
+before anything above it can hurt you. The project is parked at the end of Appendix A;
+[resuming.md](resuming.md) is the way back in.
 
 The governing rule: **a motor is the last thing you energise, not the first.**
 Every step below is safe to abandon halfway.
@@ -17,16 +18,18 @@ Confirm on the bench what the code assumes:
   there. Measure ~60 Ω across CANH/CANL with everything unpowered.
 - The pinouts in each app's `board_*.h` are **bench defaults**, not a verified
   schematic. Reconcile them with your actual wiring before the first flash.
+  **`board_limb.h` is known not to fit an ESP32-S3 DevKit at all** — it uses GPIO that
+  do not exist on the S3 and the PSRAM pins (note at its top, [resuming.md](resuming.md)).
+  Resolve that before any limb leaves bench mode.
 - Motor supply on a current-limited bench PSU, set to the lowest limit that
   still spins the joint. Not a battery.
 
 ## 1. One node, no bus, no actuators
 
-Flash `node_chest_hub` or one `node_limb` and watch the console.
-
-```bash
-idf.py -p <port> flash monitor
-```
+Flash `node_chest_hub`, or one `node_limb` in bench mode (A.6), and watch the console.
+Firmware builds in Docker and flashes from the host — Docker Desktop on Windows cannot
+reach a COM port — so use `firmware/tools/flash_bench.ps1` and `read_console.py` as in
+A.4d, or the manual esptool line there.
 
 Success looks like the boot log reaching `waiting for OPERATIONAL` with no
 panic, no watchdog reset and no `ps_can` errors beyond "no other node". A
@@ -74,6 +77,10 @@ Hub plus one limb. Watch that:
 A steadily climbing `bus_errors` with zero `rx_frames` is nearly always
 termination or a swapped CANH/CANL pair, not software.
 
+The two-board bench covered two limb-side nodes on one segment, with `node_bench`
+standing in for the heartbeat source ([bench-log.md](bench-log.md) §2–4). The hub itself
+has never run.
+
 ## 4. The heartbeat and the watchdog — the important one
 
 With Node 8 not yet involved, inject heartbeats by hand (a USB-CAN adapter, or
@@ -87,10 +94,17 @@ want the timing to be more than a log line.
 Do not proceed until this behaves exactly as specified. Everything downstream
 assumes the dead-man switch works.
 
+Done on the two-board bench (Appendix A.5, [bench-log.md](bench-log.md) §2): trip ≈ 53–55
+ms after the last beat, re-arm ≈ 258–259 ms after beats resume — estimated from a frame
+counter. The GPIO-toggle-and-scope measurement is still to do.
+
 ## 5. Motor, current-limited, one joint
 
-Only now. Command a small position hold in `PS_JMODE_POSITION` with the torque
-limit in `board_limb.h` reduced to something that cannot hurt anyone.
+Only now — and not before `board_limb.h`'s pin map is replaced, since joint 0's gate
+pins do not exist on an ESP32-S3 (step 0). Which actuator the suit uses decides what
+replaces it ([resuming.md](resuming.md)). Command a small position hold in
+`PS_JMODE_POSITION` with the torque limit in `board_limb.h` reduced to something that
+cannot hurt anyone.
 
 Scope the three phase outputs **before** connecting the motor: confirm
 centre-aligned complementary PWM with visible dead time and no overlap between
@@ -158,7 +172,10 @@ It proves the one behaviour that matters most — the dead-man switch — on rea
 silicon and real wire.
 
 Flash `firmware/apps/node_bench` to both boards, one as ORCHESTRATOR and one as
-LIMB (`idf.py menuconfig` → *Powersuit bench node*).
+LIMB: `firmware/tools/build_bench.sh` builds both roles (A.4b) and
+`firmware/tools/flash_bench.ps1` flashes them from Windows (A.4d). The drawing to wire
+from is [`bench-wiring.html`](bench-wiring.html). Everything in this appendix has been
+done; [bench-log.md](bench-log.md) has the results.
 
 ## A.1 Shopping list
 
@@ -247,8 +264,11 @@ module these are all unavailable or inadvisable:
 | **35, 36, 37** | **Octal PSRAM only** — free on non-R8 parts, forbidden on R8 |
 | 38 *or* 47/48 | Onboard RGB LED, depending on board revision (see A.3) |
 
-That leaves `1, 2, 4–18, 21, 33, 34, 39–42` comfortably free, with 39–42 doubling
-as JTAG if you ever want hardware debugging.
+That leaves `1, 2, 4–18, 21, 39–42` comfortably free on the DevKitC-1's headers, with
+39–42 doubling as JTAG if you ever want hardware debugging. (GPIO 33 and 34 exist on the
+chip but are not broken out on this board; 35–37 per Espressif's DevKitC-1 user guide
+"are used for the internal communication between ESP32-S3 and SPI flash/PSRAM memory,
+thus not available for external use" on octal-PSRAM modules.)
 
 **`node_bench` defaults to GPIO4 for TWAI TX and GPIO5 for TWAI RX.** Both are in
 the unencumbered 4–18 band: not strapping, not bonded to flash or PSRAM on any
@@ -259,9 +279,10 @@ misjumper. Change them in menuconfig if your wiring prefers otherwise.
 ## A.3 The RGB LED moved between board revisions
 
 Espressif put the onboard WS2812 on **GPIO48 on DevKitC-1 v1.0** and **GPIO38 on
-v1.1** — GPIO47/48 are fed from the 1.8 V VDD_SPI rail used by PSRAM, which is
-why it moved. Both revisions are still sold and listings rarely say which you
-are getting.
+v1.1** (their user guide for each revision). The guides document the move, not the
+reason — an earlier version of this document said GPIO47/48 run at 1.8 V, which per
+Espressif's ordering table holds only for the 1.8 V WROOM-2 boards, not these 3.3 V
+N16R8 ones. Both revisions are still sold and listings rarely say which you are getting.
 
 This matters more than it sounds: a wrong guess is a dark LED, which looks
 exactly like a broken driver. So **by default `node_bench` drives both pins** with
@@ -456,9 +477,11 @@ The manual equivalent, from inside the build directory:
 Quote `'@flash_args'` — a bare `@` is PowerShell's splatting operator. esptool 5
 accepts `@file` argument files (checked) and warns on the file's underscore options.
 
-*Not yet run against a board.* The tools, their versions, `@file` support and the
-script's dry run are checked; flashing these units from the host is confirmed on
-the sibling project. A Docker-built `node_bench` going onto one of them is not.
+Used for every flash on 2026-10-16 — bootloader, partition table and app, each hash
+verified, about 4 s for an app. To capture a board's console from boot without an
+interactive terminal, `firmware/tools/read_console.py COMx --seconds N [--until TEXT]`
+resets it into the application (esptool's sequence) and prints what it says; run it with
+the ESP-IDF environment's Python, which has pyserial.
 
 ## A.5 What you should see
 
@@ -507,8 +530,8 @@ BENCH_CAN_BITRATE=250000 bash firmware/tools/build_bench.sh    # last resort
 dead-man test, [bench-log.md](bench-log.md)), so a fallback should only be needed
 after a wiring change. 500 kbit/s first, because the sibling project ran these exact
 transceivers and boards there with zero bit, form or stuff errors under a 3,000
-frames/s flood; 250 kbit/s has not run here at all. The dead-man test needs about 100 frames a second, a few percent of the
-bus at any of them. Each board prints its rate in the boot banner
+frames/s flood; 250 kbit/s has not run here at all. The dead-man test needs about 100
+frames a second, a few percent of the bus at any of them. Each board prints its rate in the boot banner
 (`TWAI : ... @ 500000 bit/s`), and **both must match** — a rate mismatch between
 the two boards looks exactly like a wiring fault. Go back to 1 Mbps afterwards;
 it is the contract rate, and the bus budget in `network-map.md` §10 assumes it.
@@ -520,8 +543,9 @@ it is the contract rate, and the bus budget in `network-map.md` §10 assumes it.
 the motor driver, encoder SPI and current sense are not initialised, the joints read
 as at rest, and `joint_write()` counts the ticks on which the safety gate *would* have
 energised a joint instead of driving gates. Everything else is real: the 1 kHz control
-loop on core 1, its PIDs and FOC maths, `ps_safety`, the six 100 Hz TELEM streams on
-core 0, and the micro-ROS client if it is vendored. The orchestrator board keeps
+loop on core 1, its PIDs and FOC maths, `ps_safety`, the 100 Hz TELEM streams on core 0
+(six with an IMU fitted, three without — an absent IMU sends nothing), and the
+micro-ROS client if it is vendored. The orchestrator board keeps
 running `node_bench` as the heartbeat source; nothing is rewired.
 
 ```bash

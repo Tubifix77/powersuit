@@ -1,51 +1,51 @@
 # Bench log
 
-The state of the physical bench: what hardware exists, what has been proven on
-it, and what has not. [`bringup.md`](bringup.md) is the *procedure*; this file is
-the *record*. Update it when something is verified, not when it is planned.
+The record of the physical bench: what hardware exists, what was proven on it, and what
+was found along the way. [`bringup.md`](bringup.md) is the *procedure*; this file is the
+*record*. Write here when something is verified, not when it is planned. To pick the
+project up again, start with [`resuming.md`](resuming.md).
 
-## Current status — 2026-10-16
+## Summary — as left on 2026-10-16
 
-| | |
-|---|---|
-| Hardware | **Arrived.** Verified on the real units by the sibling project (Potluck). |
-| Boards right now | **In use by Potluck.** All three on the PC's USB ports; the CP2102 on board A and the PC |
-| CAN | **No transceivers attached.** They were wired to B and C for Potluck's CAN tests, then removed so B and C could be placed apart in the room for radio tests. A physical tether, not an electrical problem |
-| Powersuit on silicon | **The dead-man switch works on the two-board bench** (2026-10-16). B is the orchestrator, C the limb, wires 1–10 of [`bench-wiring.html`](bench-wiring.html), no ground tie (both on the PC); A still runs Potluck |
-| Images | Self-test built and on C. Both `node_bench` roles need a rebuild before flashing: the ones on disk predate `ps_can_txq` |
-| Next | Powersuit has the bench (2026-10-16). First the one-board CAN self-test on C, no wiring ([bringup.md](bringup.md) §2); then wire B and C per [A.4](bringup.md), flash both roles ([A.4d](bringup.md)), run [A.5](bringup.md) |
+**Proven on silicon**, two ESP32-S3 boards over real CAN at 1 Mbit/s, no motors:
 
-### Powersuit's bench, when it is Powersuit's turn
+| What | Result | Section |
+|---|---|---|
+| SAFETY frames leave first | queued behind 12 telemetry frames, SAFETY went out 1st, not 13th | [1](#1-the-can-self-test-one-board-no-wiring) |
+| The dead-man switch | trip on heartbeat loss ≈ 50 ms after the last beat; re-arm ≈ 250 ms after beats resume; two power configurations; 0 errors | [2](#2-the-dead-man-switch) |
+| The real limb firmware | 1 kHz loop, worst iteration ~200–217 µs, 0 missed ticks; ~4 KB stack free | [3](#3-the-real-limb-firmware) |
+| The one actuation gate | allowed every tick while commanded and OPERATIONAL; refused every tick from the trip until re-arm | [4](#4-the-one-actuation-gate-both-ways) |
 
-**B = orchestrator (COM4), C = limb (COM5).** B and C are the pair Potluck's CAN ran
-clean on, and A keeps the CP2102 so Potluck's frame link is not disturbed. Each of B
-and C gets one transceiver wired per [A.4](bringup.md); A is not involved and needs
-no wires. The sibling project's drawing of this exact wiring, with the modules as
-they sit on the bench, is `D:\Projects\potluck\bench\m4-can-wiring.html`: the same
-ten wires as [A.4](bringup.md), plus the board-to-board ground A.4 adds. Powersuit's own
-version, with that eleventh wire and the roles, is [`bench-wiring.html`](bench-wiring.html). Flashing
-`node_bench` replaces Potluck's firmware on B and C; Potluck's own
-builds restore it afterwards, and the factory images are backed up by MAC.
+**The bench as left:**
 
-### Before touching a board
+| Board | Firmware | Power | Role |
+|---|---|---|---|
+| A | the sibling project's (Potluck) | PC USB | not part of this bench; carries Potluck's CP2102 adapter |
+| B | `node_bench`, orchestrator | PC USB (COM4) | 100 Hz heartbeat, 1 Hz MODE_SET, 10 Hz position hold to node 1 |
+| C | `node_limb`, bench mode | PC USB (COM5) | the real limb firmware, node 1 (arm_right), no motor hardware |
 
-The boards are shared. While a Potluck soak is running, **do not** unplug a
-board, reflash one, press any button on one, or kill any `python.exe` process —
-any of those ends a day of measurement. Check first:
+B and C each have an SN65HVD230 wired per [`bench-wiring.html`](bench-wiring.html),
+including wire 11, the board-to-board ground tie — **green on the real bench**, not black
+as drawn. CANL is also green; they share no end (CANL runs between the modules on the
+left, wire 11 between the boards' J3 headers on the right).
+
+## Before touching a board
+
+The boards are shared with a sibling ESP32-S3 project, Potluck, which runs 24-hour
+soaks on them. While one is running, **do not** unplug a board, reflash one, press any
+button on one, or kill any `python.exe`. Check first:
 
 ```powershell
 D:\Projects\potluck\tools\soak.ps1 -Status
 ```
 
-Under Potluck firmware, **GPIO0 (the BOOT button) is a "leave the cluster"
-button**: pressing it makes a node announce its departure and go quiet. That
-stops mattering once `node_bench` is flashed.
+Under Potluck's firmware the BOOT button (GPIO0) makes a node leave its cluster. To give
+B and C back to Potluck, flash them with its own build.
 
 ## Board register
 
-Physical identity, which survives reflashing. COM numbers are those assigned on
-the development PC and may differ elsewhere; the CH343 serial number is what
-identifies a board in Device Manager.
+Physical identity, which survives reflashing. The CH343 serial number identifies a board
+in Device Manager; COM numbers are this PC's and may differ elsewhere.
 
 | Board | MAC | COM | CH343 serial | Factory LED colour (frozen) |
 |---|---|---|---|---|
@@ -53,312 +53,204 @@ identifies a board in Device Manager.
 | B | `b8:1f:3f:da:73:68` | COM4 | 5C93086589 | — |
 | C | `b8:1f:3f:da:81:60` | COM5 | 5C93086538 | green |
 
-Factory images are backed up in `D:\esp\board-backups\`, named by MAC. Board A
-is a full 16 MB dump; B and C are the first 2 MB, which covers everything in use.
-Restore with:
+Factory images are backed up in `D:\esp\board-backups\`, named by MAC (A a full 16 MB
+dump; B and C the first 2 MB, which covers everything in use). Restore with
+`python -m esptool --port COMx write-flash 0 <file>`.
 
-```powershell
-python -m esptool --port COMx write-flash 0 <file>
-```
+## The hardware, as verified
 
-## Verified on these units
+**Silicon** (sibling project, 2026-10-01): esptool reports ESP32-S3 QFN56 rev v0.2, dual
+core plus LP core at 240 MHz, 16 MB flash, 8 MB PSRAM, flash eFuse mode quad at 3.3 V.
+Genuine N16R8 despite an AliExpress clone listing. **Security wide open** — Secure Boot
+and Flash Encryption off, every key block empty — so the boards can be reflashed
+indefinitely.
 
-All verified on 2026-10-01 by the sibling project. Recorded here so it is not
-re-derived.
+**USB:** the bridge is a **WCH CH343** (VID 1A86, PID 55D3), not the CP2102 both projects'
+docs first assumed; Windows 11 had its driver. The two USB-C sockets look identical and
+are silkscreened **`COM`** (the CH343 on UART0, GPIO43/44) and **`USB`** (native USB);
+tape-label them. DTR/RTS auto-reset is wired, so flashing needs no buttons — and opening
+a console with ordinary settings **resets the board** (pyserial: set `dtr` and `rts`
+false before `open()` to avoid it).
 
-**Silicon.** esptool reports ESP32-S3 QFN56 rev v0.2, dual core plus LP core at
-240 MHz, 16 MB flash, 8 MB PSRAM, flash eFuse mode quad at 3.3 V. Genuine N16R8,
-despite an AliExpress clone listing with no Espressif seal and recycled ESP32-C3
-marketing copy.
+**Pins** — checked against Espressif's DevKitC-1 user guides:
 
-**Security state is wide open**, which is what a bench wants: Secure Boot off,
-Flash Encryption off, all six key blocks empty, `SPI_BOOT_CRYPT_CNT` 0. Nothing is
-locked; the boards can be reflashed indefinitely.
+- the onboard RGB LED is on **GPIO48 on v1.0** and **GPIO38 on v1.1**. Espressif documents
+  the move, not the reason; which revision these units are is not established, and
+  `node_bench` drives both (the LED works).
+- on boards with octal PSRAM, **GPIO35, 36 and 37** "are used for the internal
+  communication between ESP32-S3 and SPI flash/PSRAM memory, thus not available for
+  external use" — though the header offers them as ordinary pins.
+- GPIO 33 and 34 are not on the DevKitC-1's headers.
 
-**USB bridge: WCH CH343** (VID 1A86, PID 55D3), not the CP2102 that both
-projects' docs assumed. Windows 11 already carried the driver — nothing needed
-installing.
+**Transceivers** (EGBO SN65HVD230 / VP230 modules): a 4-pin header, `3.3V / GND / RX / TX`
+read from one end and `TX / RX / GND / 3.3V` from the other — **match by printed label**;
+CANH/CANL out twice in parallel, on a 2-pin header and a screw terminal. The seller's
+schematic for these exact units draws **R1 = 10 kΩ from Rs to GND** (slope-control mode,
+not changeable without soldering) and **R2 = 120 Ω across CANH/CANL** (onboard
+termination: two modules make a correctly terminated two-node bus; a third would
+over-terminate).
 
-**Sockets: `COM` and `USB`**, visually identical USB-C, tape-labelled. `COM` is
-the CH343 on UART0; `USB` is the chip's native USB.
+**Bitrate:** slope-control mode does **not** cap the bus. A sibling-project claim of a
+250 kbit/s limit was withdrawn — it came from a model's summary of the datasheet, not the
+datasheet. From TI's datasheet itself (SLOS346O): the part is "designed for data rates up
+to 1 Mbps"; 10 kΩ gives ~15 V/µs edges and ~100 ns loop delay (~70 ns in high-speed
+mode); no data-rate limit is given for slope control, whose cost is bus length; "250
+kbps" is only the caption of Figure 41's typical waveform. Two 10 kΩ nodes over 20 cm need
+~200 ns of a ~750 ns sample point. **1 Mbit/s has since run clean here** (sections 2–4).
 
-**Flashing:** no buttons needed — DTR/RTS auto-reset is wired, so it scripts
-cleanly. 730 KB in 11.5 s, hash verified.
+**Host tooling:** esptool 5 spells commands with hyphens (`write-flash`, `chip-id`).
+pyserial, esptool 5.3.1 and esp-idf-monitor 1.9.0 live in ESP-IDF's Python environment
+(`%USERPROFILE%\.espressif\python_env\idf6.0_py3.14_env`), not the system Python. Docker
+Desktop on Windows cannot reach a COM port, so firmware is built in Docker and flashed
+from the host ([`bringup.md`](bringup.md) A.4d).
 
-**Pins:** the [A.2](bringup.md) table matches the real silkscreen. GPIO4 and 5
-are present and free for TWAI. GPIO35–37 are broken out on the bottom header as if
-they were ordinary GPIOs; on an R8 part they are the octal PSRAM and must never be
-used.
+## 1. The CAN self-test, one board, no wiring
 
-**Transceivers** (used by the sibling project on B and C at 500 kbit/s, 2026-10-04/05;
-pinout from the seller's photos of the exact units): 4-pin header `3.3V / GND / RX / TX`; no RS pin exposed; CANH/CANL out
-twice in parallel, on a 2-pin header and a screw terminal.
-
-**Transceiver schematic.** The seller's listing for these exact units includes
-the module schematic. It draws **R1 = 10 kΩ from Rs to GND** and **R2 = 120 Ω
-across CANH/CANL**. So:
-
-- **Termination is onboard**, consistent with the `121` marking seen in the
-  photos. Two modules give the ~60 Ω a two-node bus wants; no resistors to buy,
-  and no multimeter needed to establish it.
-- **Rs is fixed at 10 kΩ**, not brought out to the header, so not changeable
-  without soldering. That puts the SN65HVD230 in *slope-control* mode.
-
-Both are confirmed by drawing rather than by measuring these units, which is
-strong evidence for a schematic published against the exact listing.
-
-**Transceiver bitrate.** The sibling project first concluded that slope-control
-mode limits the bus to 250 kbit/s, then withdrew the claim: it came from a model's
-summary of the datasheet, not the datasheet. Checked against the text of TI's
-datasheet itself (SLOS346O, rev. April 2018):
-
-- 10 kΩ gives ~15 V/µs edges and ~100 ns loop delay, against ~70 ns in
-  high-speed mode. 100 kΩ gives ~2 V/µs and ~500 ns.
-- The part is "designed for data rates up to 1 Mbps". The datasheet gives no
-  data-rate limit for slope-control mode; the cost it names is bus length.
-- "250 kbps" appears only as the caption of Figure 41, a *typical* waveform
-  measured at that rate. It is a test condition, not a ceiling.
-- At 1 Mbps the bit is 1000 ns and the sample point ~750 ns. Two 10 kΩ
-  transceivers plus 20 cm of wire need ~200 ns of round trip. In spec, with
-  margin. At 100 kΩ it would not be.
-
-So the bench runs at the contract's 1 Mbps, with 250 kbit/s as a one-variable
-fallback (`BENCH_CAN_BITRATE=250000`, see [bringup.md](bringup.md) A.5) if the
-hardware disagrees with the datasheet. That fallback was built and role-checked
-before any board was touched.
-
-**Host tooling.** esptool v5 spells commands with hyphens (`chip-id`, `flash-id`,
-`read-flash`, `get-security-info`, `write-flash`); the underscore forms are
-deprecated and warn. pyserial is not in the system Python — it lives in ESP-IDF's
-environment (`%USERPROFILE%\.espressif\python_env\idf6.0_py3.14_env`), which also
-carries esptool 5.3.1 and esp-idf-monitor 1.9.0. Anything that reads a serial port
-directly should use that interpreter.
-
-## Measured on this hardware, relevant to Powersuit nodes
-
-**Wi-Fi stack cost: 32,264 bytes of internal DRAM** with ESP-NOW active, of which
-ESP-NOW itself is only 152 bytes. The expensive part is the radio underneath, not
-the protocol. This matters for `node_helmet`, the only Powersuit node that brings
-up Wi-Fi (for its ESP-NOW diagnostics link). `node_bench` uses no radio.
-
-**The RF environment is saturated** with Wi-Fi and Bluetooth. For anything radio
-here, latency tails, retries and bursty loss are the expected signature of the
-band, not firmware faults — but treat that as a hypothesis per counter, never a
-blanket excuse. Ask whether RF can physically move the counter in question. The
-CAN bench is unaffected: it is wired.
-
-## Lessons from the sibling project, and what Powersuit did about them
-
-Potluck has run these boards continuously since they arrived. Its bench datasheet
-(`D:\Projects\potluck\bench\esp32-s3-bench-datasheet.md`, every row tagged
-measured / owner / seller / datasheet) and its CAN session log are the sources. Read
-2026-10-15, before Powersuit's first flash.
-
-| Lesson | Applies to | Powersuit's response |
-|---|---|---|
-| **The TWAI driver's transmit queue is FIFO.** A high-priority frame queued behind the same node's traffic took 2.5–5.5 ms to leave, against ~0.3 ms of wire time; it never lost arbitration because it never reached it. Fixed there by transmitting one frame at a time in priority order: 335–683 µs under a 3,000 frames/s flood | every node; the hub most | **Confirmed in IDF 5.5.5's source** (`esp_twai_onchip.c`: `tx_mount_queue` is a FreeRTOS queue). `ps_can` now holds pending frames in class order and gives the driver one at a time (`ps_can_txq`, host-tested). Recorded in `network-map.md` §2. *Unproven on silicon.* |
-| **CAN runs clean at 500 kbit/s** on these modules, straight wiring, ~20 cm, no module-to-module ground (boards on one PC) | `node_bench` | 500 kbit/s is now the first fallback, ahead of 250 ([bringup.md](bringup.md) A.5). 1 Mbps remains unrun |
-| **The RGB LED lights when GPIO38 and GPIO48 are both driven** | `node_bench` | Now the default; the revision question no longer blocks anything (A.3) |
-| **Opening the console port resets the board** (pyserial defaults toggle DTR/RTS; set both false *before* `open()` to avoid it) | A.5 | Documented: never open the orchestrator's console mid-test; `esp_idf_monitor --no-reset` to watch a running board |
-| **Identify pins by printed label**, never position: the transceiver header reads TX/RX/GND/3.3V from one end and 3.3V/GND/RX/TX from the other | A.4 | A.4 now says so |
-| **The receive ISR queue overflowed** 220 times in 881,583 frames at ~3,000 frames/s (128 entries, drained too slowly) | `node_chest_hub` | The hub uses the same 128-entry queue, and bus 1's worst case is ~2,800 frames/s (`network-map.md` §10). Not changed blind: watch `rx_dropped` on the hub at bring-up step 3, and drain faster or add an acceptance filter if it moves |
-| A lone CAN node cannot transmit (every frame needs an ACK); use loopback with RX on the TX pin | bring-up step 2 | Already in `bringup.md` §2 |
-| **ESP-NOW wedges for good** (`ESP_ERR_ESPNOW_NO_MEM` after 2.5–5 min) with static Wi-Fi TX buffers **and** AMPDU on; `SPIRAM_TRY_ALLOCATE_WIFI_LWIP` forces static buffers | `node_helmet` | Checked: the helmet uses dynamic TX buffers, so it is not in the trap. Do not enable Wi-Fi/lwIP buffers in PSRAM without turning AMPDU off |
-| A Wi-Fi station hunting for a router it cannot find scans every channel and drops ESP-NOW peers; adjacent channels leak at desk range | `node_helmet` | The helmet does not join a router. Recorded for if it ever does |
-| `esp_random()` is truly random only while the radio runs | any key or nonce | Powersuit calls `esp_random` nowhere; recorded for when something does |
-| A small power bank was too unstable for a board; mains and PC ports were fine | power | Use the charger or the PC |
-| The CP2102 dongle back-powers through its signal lines if left wired to a board while unplugged | Potluck only | Not used by Powersuit |
-| Console at 115200; reading at the wrong rate shows nothing at all | A.4d | `node_bench` uses 115200, which esp-idf-monitor defaults to |
-
-## First Powersuit firmware on silicon — 2026-10-16
-
-Board C, `node_bench` in CAN self-test mode ([bringup.md](bringup.md) §2): the TWAI
-controller in self-test + loopback at 1 Mbit/s, RX on the TX pin, no transceiver.
-Flashed from the host with `flash_bench.ps1` (A.4d, first run: every image hash
-verified), read with `read_console.py`. Log: `.verify-logs/selftest_C.log`.
+2026-10-16, board C, `node_bench` self-test mode ([`bringup.md`](bringup.md) §2): the TWAI
+controller in self-test + loopback at 1 Mbit/s, RX on the TX pin, no transceiver. The
+first Powersuit firmware on silicon, and the first host flash.
 
 | Check | Result |
 |---|---|
-| basic | 200/200 frames out and back; 0 bus errors, 0 drops, 0 refused |
-| **order** | **All 13 queued before any left: SAFETY came back 1st.** In arrival order — the driver's own FIFO — it would have been 13th. `ps_can_txq` confirmed on silicon |
+| basic | 200/200 frames out and back; 0 bus errors, 0 drops |
+| **order** | **all 13 queued before any left: SAFETY came back 1st** — in arrival order, the driver's own FIFO, it would be 13th |
 | fifo | 12/12 TELEM frames back in the order sent |
-| order_concurrent | 2 frames back when SAFETY was queued; SAFETY came back 4th — those two, the one on the wire, then SAFETY |
-| latency, idle | SAFETY send-to-receive 201–218 µs over 50 frames |
-| latency, behind 12 queued TELEM | 268–284 µs over 20 runs: about two frame times, where the FIFO inversion would have cost ~1.7 ms |
-| totals | 536 frames sent and received; 0 rx_dropped, 0 tx_timeouts, 0 bus_errors |
+| order_concurrent | 2 frames back when SAFETY was queued; SAFETY 4th — those two, the one on the wire, then SAFETY |
+| latency, idle | SAFETY send-to-receive 201–218 µs |
+| latency, behind 12 queued | 268–284 µs, about two frame times (the FIFO inversion would cost ~1.7 ms) |
+| totals | 536 frames; 0 rx_dropped, 0 tx_timeouts, 0 bus_errors |
 
-**The first run failed one check, and the test was wrong, not the firmware.** It assumed
-twelve `ps_can_send` calls finish before the first frame does. They do not: each wakes
-the higher-priority transmit task, so queuing takes about three frame times and two or
-three TELEM frames genuinely leave first. SAFETY came back 4th, having overtaken
-everything still waiting — correct behaviour, judged against the wrong number. Rather
-than loosen the bound, the test was made decisive (the test task briefly outranks the
-transmit task on the same core, so all thirteen are queued before any leaves: SAFETY
-must be first, with no tolerance), and the realistic concurrent case kept as its own
-check with a bound computed from what had actually left.
+The first run failed its ordering check, and **the test was wrong, not the firmware**: it
+assumed twelve sends finish before one frame does, but each send wakes the
+higher-priority transmit task, so two or three frames genuinely left first. The test was
+made decisive (the test task briefly outranks the transmit task, so all thirteen are
+queued before any leaves) rather than loosened. C's LED showed steady green, the pass
+colour — the first confirmation that driving both LED pins works.
 
-**The LED works with both pins driven:** C showed steady green, the pass colour, on the
-owner's look. Which pin carries it is still not established and need not be. A and B
-meanwhile showed red, which in Potluck's scheme means a peer is dead (over 50 %
-heartbeat loss): correctly reporting C's departure from the cell, not a fault.
+## 2. The dead-man switch
 
-Also shown by this run: host flashing works (bootloader, partition table and app, 3.4 s
-for the app), Powersuit firmware boots on these boards, and `read_console.py` captures
-a board from boot. Not shown: anything on a real bus — loopback has no transceiver, no
-second node, and no arbitration.
+[`bringup.md`](bringup.md) A.5: B `node_bench` orchestrator, C `node_bench` limb. The owner
+pulled B's power and plugged it back while C's console was recorded and its LED watched;
+the LED matched every step.
 
-## The dead-man switch, on silicon — 2026-10-16
+| | Run 1: both on the PC, no ground tie | Run 2: B on the mains charger, ground tie fitted |
+|---|---|---|
+| OPERATIONAL after boot | 307 ms | 187 ms |
+| B pulled | **`2 -> 3 (cause 6)`** — PASSIVE, COMM_LOSS | **`2 -> 3 (cause 6)`** |
+| silence before the trip | **≈ 55 ms** | **≈ 53 ms** |
+| B back: beats before re-arm | **≈ 259 ms** | **≈ 258 ms** |
+| errors | 0 | 0 in 43 operational samples |
 
-[bringup.md](bringup.md) A.5. B runs `node_bench` as the orchestrator (COM4), C as the
-limb (COM5), both on the PC's USB, wired with wires 1–10 of
-[`bench-wiring.html`](bench-wiring.html) — **without wire 11, the board-to-board ground
-tie**: both boards shared ground through the PC's USB, as in the sibling project's
-CAN run. So the ten-wire, same-PC configuration is the one proven; the
-charger-powered configuration, which needs the tie, has not been run. 1 Mbit/s. C's console recorded from boot for two minutes
-(`.verify-logs/deadman_C.log`) while the owner pulled B's USB cable and plugged it back
-in, watching C's LED.
+Designed: 50 ms watchdog, 250 ms re-arm ([`safety.md`](safety.md) §2). The timings are
+**estimates from the receive counter** — frames arrive at a steady ~101/s, which dates the
+last and first beat to within about a frame period; nothing on the bench timestamps a
+beat. The node_bench limb never transmits, so the trip came from missing heartbeats alone.
 
-| Step | Owner saw on C | C logged | |
-|---|---|---|---|
-| 1 boot, B already beating | white-blue pulse | `0 -> 1` at 101 ms, `1 -> 2` (OPERATIONAL) at 307 ms | ✓ |
-| running ~60 s | white-blue pulse | ~102 frames/s (100 Hz heartbeat + 1 Hz MODE_SET), **0 errors** | ✓ |
-| 2 **B's USB pulled** | **amber at once** | **`2 -> 3 (cause 6)`** at 60,957 ms — OPERATIONAL to PASSIVE, cause COMM_LOSS | ✓ |
-| B absent ~16 s | amber | `rx` frozen at 6143, C silent, 0 errors | ✓ |
-| 3 **B plugged back in** | back to white-blue after about a second | **`3 -> 2`** at 77,522 ms | ✓ |
-| after | white-blue | steady, 0 errors, to the end of the capture | ✓ |
+**Two configurations are proven:** both boards on one PC with no ground tie (they share
+ground through the PC), and one on the floating mains charger with the tie. One on the
+charger *without* the tie has never been tried.
 
-**Timing, estimated from the receive counter** (frames arrive at a steady ~101.5/s, so
-the counter dates the last and first heartbeat to within about one frame period;
-nothing on the bench timestamps a beat directly):
+## 3. The real limb firmware
 
-- **trip:** last heartbeat ≈ 60,902 ms, PASSIVE at 60,957 ms — **≈ 55 ms of silence**,
-  against the designed 50 ms watchdog.
-- **re-arm:** heartbeats resume ≈ 77,263 ms, OPERATIONAL at 77,522 ms — **≈ 259 ms**,
-  against the designed 250 ms of continuous beats plus a fresh command
-  ([safety.md](safety.md) §2).
-
-Both are consistent with the design; neither is an instrumented measurement. The
-GPIO-toggle-and-scope check in [bringup.md](bringup.md) §4 would make them one. C
-never transmits in this role (`tx=0`), so removing B cost C no acknowledgements: the
-trip came from the missing heartbeats alone, as its cause code says, not from a
-bus-off.
-
-**What this proves, and what it does not.** The safety state machine, `ps_safety`'s
-watchdog, `ps_can` with its new transmit path, and the CAN wiring all behave as
-specified on real silicon and real wire — the one behaviour Appendix A exists to
-prove. It is two nodes at 1 Mbit/s on 20 cm, with no actuator, no hub, no SPI and no
-load; everything above the dead-man switch in [bringup.md](bringup.md) is still
-unproven.
-
-### Second run: B on the mains charger, with wire 11
-
-The same test with B powered from the 6-port charger — whose output floats — and the
-board-to-board ground tie fitted (J3 `G` to J3 `G`). **On the real bench wire 11 is
-green**, not black as drawn, so two wires are green: CANL between the modules on the
-far left, wire 11 between the boards' J3 headers on the far right. They share no end.
-C on the PC, recorded for 100 s (`.verify-logs/deadman_charger_C.log`); the owner
-pulled B's lead from the charger and plugged it back, and saw the same LED sequence.
-
-| | C logged |
-|---|---|
-| boot, B beating from the charger | OPERATIONAL at 187 ms |
-| B's lead pulled | **`2 -> 3 (cause 6)`** at 23,197 ms |
-| B plugged back | **`3 -> 2`** at 35,742 ms |
-| errors | **0** in every one of 43 operational samples, and while B was gone |
-
-Estimated from the receive counter as before (steady 101.0 frames/s): **≈ 53 ms** of
-silence before the trip and **≈ 258 ms** of beats before re-arm — within a few
-milliseconds of the first run's 55 and 259. So both configurations are proven: two
-boards on one PC with no tie, and one board on a floating charger with the tie. One
-board on the charger *without* the tie has not been tried and should not be.
-
-## The real limb firmware on silicon — 2026-10-16
-
-[bringup.md](bringup.md) A.6. C runs the actual `node_limb` image (arm_right, node 1)
-in bench mode — motor driver, encoders and current sense not initialised, everything
-else real, micro-ROS client included because it is vendored in this checkout. B keeps
-beating from the charger as the `node_bench` orchestrator; the same wiring.
-Log: `.verify-logs/limbapp_C.log`.
+[`bringup.md`](bringup.md) A.6: C runs the actual `node_limb` image (arm_right, node 1) in
+bench mode — no motor driver, encoders or current sense; everything else real, including
+the micro-ROS client, which is vendored in this checkout. B keeps beating.
 
 | | Result |
 |---|---|
-| boot | node 1 up in ~350 ms; IMU absent, reported, and its telemetry suppressed |
-| safety | armed (watchdog 50 ms, re-arm 250 ms); OPERATIONAL ~0.7 s after boot on B's beats |
-| **1 kHz control loop, core 1** | ~1,000 ticks/s; **worst iteration 196–203 µs** of a 1,000 µs period; **0 missed ticks** over 20,000 periods |
-| control-task stack | **4,040 B free** of 6,144 |
-| **TELEM out, core 0** | **~607 frames/s** — six 100 Hz streams, as designed — all acknowledged by B |
-| CAN | ~101 frames/s in, **0 bus errors**, 0 dropped |
-| safety gate | 0 would-actuate ticks: correct, since nothing commands a joint out of PASSIVE |
+| boot and safety | up in ~350 ms; armed (50 ms watchdog, 250 ms re-arm); OPERATIONAL ~0.7 s after boot |
+| **1 kHz control loop, core 1** | ~1,000 ticks/s; **worst iteration 196–217 µs** of 1,000; **0 missed ticks** |
+| control-task stack | **~4,030 B free** of 6,144 |
+| TELEM out, core 0 | **~607 frames/s** with IMU streams, **~307** after the fix below (no IMU fitted) |
+| CAN | ~101 frames/s in (~121 once B sent position holds), 0 bus errors |
 
-**The first run reported 38 missed ticks, and they were boot latency.** The count was
-identical at 10, 20 and 30 s: the 1 kHz timer starts before the control task has
-brought its hardware up, and the absent IMU's I2C timeout takes ~38 ms, so ticks piled
-up and the first iteration counted them. The task now discards that backlog before its
-loop starts; the re-run reads 0.
+Two things this run found, both fixed and re-verified on C:
 
-### The one actuation gate, both ways
+- **38 "missed ticks" were boot latency.** The count never grew after boot: the 1 kHz
+  timer runs while the absent IMU's I2C times out (~38 ms), and the first iteration
+  counted the backlog. The task now discards it; re-runs read 0.
+- **"IMU telemetry suppressed" was not true.** With no IMU the limb still sent all three
+  IMU streams at 100 Hz — zeros, including an all-zero quaternion, which is not a
+  rotation. The sensor snapshot now carries a validity flag and nothing is sent without
+  a reading: 607 → 307 frames/s.
 
-The bench orchestrator now sends node 1 a 10 Hz position hold for both joints
-(JOINT_CMD, addressed to node 1, never broadcast), so the limb's joints ask to be
-energised and the gate has to decide. C recorded for 100 s while the owner pulled B
-for about 30 s (`.verify-logs/gate_C.log`):
+## 4. The one actuation gate, both ways
 
-| | C logged | |
+B sends node 1 a 10 Hz position hold for both joints (JOINT_CMD, addressed, never
+broadcast), so the limb's joints ask to be energised and the gate has to decide. In bench
+mode `joint_write()` counts the ticks on which the gate *would* have energised a joint.
+The owner pulled B for ~30 s:
+
+| | C logged |
+|---|---|
+| OPERATIONAL, commanded | **would-actuate +~20,000 per 10 s** — 2 joints × 1,000 ticks, every tick allowed |
+| B pulled | `2 -> 3 (cause 6)`, "setpoints zeroed, joints forced PASSIVE" |
+| B absent | **would-actuate frozen at 73,816** across three reports — every tick refused |
+| B back | `3 -> 2`, "PIDs reset", climbing again |
+
+The freeze is exact: 7.8 s × 2,000/s from the last report predicts 73,818. With B
+unpowered, C's telemetry had nobody to acknowledge it and failed at ~1,200 errors/s — the
+normal behaviour of a CAN node left alone — while the loop kept time (211 µs, 0 missed).
+C never went bus-off, since acknowledgement errors alone do not drive a node there, so the
+trip cause stayed heartbeat loss; the errors stopped the moment B returned.
+
+## Defects the bench found
+
+| Defect | Found by | Status |
 |---|---|---|
-| OPERATIONAL, B commanding | `cmd ok` +200 per 10 s; **would-actuate +~20,000 per 10 s** — 2 joints × 1,000 ticks/s, every tick allowed | ✓ |
-| B pulled | **`2 -> 3 (cause 6)`**, "setpoints zeroed, joints forced PASSIVE" | ✓ |
-| B absent ~30 s | **would-actuate frozen at 73,816** across three reports — every tick refused | ✓ |
-| B back | `3 -> 2`, "PIDs reset"; would-actuate climbing at ~2,000/s again | ✓ |
+| **The TWAI driver sends in arrival order**, so a SAFETY frame could wait behind up to 15 of its own node's frames before reaching arbitration | the sibling project's CAN log, confirmed in IDF 5.5.5's `esp_twai_onchip.c` | **fixed**: `ps_can_txq` sends class order, one frame at a time; shown in section 1; recorded in `network-map.md` §2 |
+| **`node_limb`'s pin map cannot run on an S3 DevKit**: GPIO 22–25 do not exist on the S3, 35–37 are the PSRAM, 38 the LED; 29 signals wanted against 23 safe pins | reading why `node_limb` never booted | **open — a hardware decision** ([`resuming.md`](resuming.md)); bench mode meanwhile; `flash_bench.ps1` refuses a non-bench limb image |
+| `docs/bringup.md`'s flash step (`idf.py flash`) could never work: Docker cannot reach a COM port | checking the handover | fixed: `flash_bench.ps1` |
+| Five apps silently ignored a `-D SDKCONFIG_DEFAULTS` overlay (bare `set()`) | building bench mode | fixed: guarded, as `node_bench` already was |
+| `PS_CAN_BITRATE` was a Kconfig option nothing read | planning a bitrate fallback | fixed: every app reads it |
+| The limb sent zero-filled IMU telemetry and logged that it did not | section 3 | fixed and re-verified |
+| 38 phantom missed ticks at boot | section 3 | fixed and re-verified |
+| Docs said GPIO47/48 sit on a 1.8 V rail on these boards | checking Espressif's guide | corrected: that holds only for 1.8 V modules; these are 3.3 V |
 
-The freeze is exact: 7.8 s at 2,000/s from the last report before the trip predicts
-73,818, and it stopped at 73,816.
+## Lessons from the sibling project
 
-**The 1 kHz loop kept time through an error storm.** With B unpowered, C's ~600 TELEM
-frames/s had no node to acknowledge them, so every one failed: `err` rose ~1,200/s,
-the normal behaviour of a CAN node left alone. Throughout, the worst iteration stayed
-211 µs with 0 missed ticks; C never went bus-off (acknowledgement errors alone do not
-drive a node there), so the trip cause stayed heartbeat loss, and the errors stopped
-the instant B returned. Re-arm takes JOINT_CMDs that arrive while still PASSIVE as the
-fresh command, so the joints energise as soon as the 250 ms window is met.
+Potluck ran these boards for two weeks before Powersuit did; its bench datasheet
+(`D:\Projects\potluck\bench\esp32-s3-bench-datasheet.md`, every fact tagged by how it is
+known) was read on 2026-10-15.
 
-### Known defect found on the way: node_limb's pin map
+| Lesson | Powersuit's response |
+|---|---|
+| The TWAI driver's transmit queue is FIFO | fixed and shown — see the defects table |
+| CAN runs clean at 500 kbit/s on these modules | 500 kbit/s is the first fallback ([`bringup.md`](bringup.md) A.5); 1 Mbit/s has since run clean |
+| The LED works with GPIO38 and GPIO48 both driven | `node_bench` does the same by default |
+| Opening a console port resets the board | A.5: never open the orchestrator's console mid-test; `esp_idf_monitor --no-reset` |
+| Identify pins by printed label, not position | A.4 says so |
+| The receive queue overflowed at ~3,000 frames/s (128 entries) | **open**: the hub uses the same queue and bus 1's worst case is ~3,000 frames/s; measure `rx_dropped` at bring-up §3 before changing it |
+| A lone CAN node cannot transmit | the self-test uses loopback with RX on the TX pin |
+| ESP-NOW wedges with static Wi-Fi TX buffers *and* AMPDU | checked: `node_helmet` uses dynamic buffers |
+| `esp_random()` is truly random only while the radio runs | Powersuit never calls it |
+| A small power bank was too unstable for a board | use the charger or the PC |
 
-`board_limb.h` cannot run on an ESP32-S3 DevKitC-1 N16R8. Joint 0's gate pins are GPIO
-22–25, **which do not exist on the S3** (it has 0–21 and 26–48), so `ps_focdrv_init()`
-fails at boot — the real reason node_limb never came up without its hardware. Joint 1's
-are 35–37, **the octal PSRAM on R8 parts**, and 38, the v1.1 LED. And the budget does
-not close: two 6-gate FOC joints, current sense, strain, IMU, encoder SPI and CAN want
-29 signals against 23 safe GPIOs on the DevKit's headers. A hardware decision, not a
-renumbering — 3-PWM gate drivers, fewer sensors, a second MCU, or servo limbs on the
-cosplay path — and recorded rather than guessed at. Bench mode runs everything but the
-motor hardware meanwhile, and `flash_bench.ps1` refuses a non-bench node_limb image.
+**Also measured there, relevant to `node_helmet`** (the only Powersuit node with a radio):
+the Wi-Fi stack costs 32,264 bytes of internal DRAM with ESP-NOW active, ESP-NOW itself
+152; and this house's 2.4 GHz band is saturated, so radio latency tails here are the band
+before they are firmware — a hypothesis per counter, never a blanket excuse.
 
-Also found: five apps set `SDKCONFIG_DEFAULTS` unguarded, so a defaults overlay passed
-with `-D` was silently ignored — the bug `node_bench` had fixed on 2026-10-01. All
-guarded now. `node_flight`'s pins are all valid; its servo on GPIO38 shares the v1.1 LED.
+## Not verified
 
-## Not yet verified
-
-- **RGB LED pin** — GPIO38 (v1.1) or GPIO48 (v1.0). Potluck's firmware never
-  drives the LED, so nothing was learned. Use the [A.3](bringup.md) probe mode.
-- **1 Mbps on real wire.** The datasheet says it is in spec; the bench has not
-  shown it yet. `bus_errors` in A.5 is the first evidence either way.
-- **The dead-man timing as a measurement.** ≈ 55 ms and ≈ 259 ms above are estimates
-  from a frame counter; a GPIO toggle on the transition and a scope or logic analyser
-  would make them measurements ([bringup.md](bringup.md) §4).
+- **The timings as measurements.** ≈ 50 ms and ≈ 250 ms are counter estimates; a GPIO
+  toggle on the transition and a logic analyser would make them measurements
+  ([`bringup.md`](bringup.md) §4).
+- **The LED pin.** Both are driven; which one carries the LED on these units is unknown.
+- **The charger configuration without the ground tie.** Never tried; do not.
+- **Anything with more than two nodes, a hub, SPI, a Pi, an actuator, or a battery.**
 
 ## Log
 
 | Date | Event |
 |---|---|
-| 2026-10-16 | **The one actuation gate, on silicon:** with B commanding a position hold, would-actuate climbs 2,000/s while OPERATIONAL and freezes at the trip until re-arm. Loop kept time through ~1,200 errors/s with B gone |
-| 2026-10-16 | **The real `node_limb` firmware runs on C** in bench mode: 1 kHz loop, worst iteration ~200 µs, 0 missed ticks; ~607 TELEM frames/s out, 0 errors. Found: `board_limb.h`'s pin map uses GPIO that do not exist on the S3 |
-| 2026-10-16 | Dead-man test repeated with B on the mains charger and wire 11 fitted (green on the real bench): trip cause 6 at ≈ 53 ms, re-arm ≈ 258 ms, 0 errors |
-| 2026-10-16 | **The dead-man switch works on silicon.** B orchestrator, C limb, 1 Mbit/s, 0 errors. Pulling B: C to PASSIVE, cause COMM_LOSS, ≈ 55 ms after the last beat; plugging B back: OPERATIONAL ≈ 259 ms after beats resumed |
-| 2026-10-16 | Powersuit owns the bench. **First Powersuit firmware on silicon:** CAN self-test on C, all seven checks pass; SAFETY overtakes a 12-frame queue (1st, not 13th). C's LED steady green: both-pin drive works. A and B still on Potluck, red for C's departure |
-| 2026-09-21 | Ordered — DKK 408 landed, AliExpress ([A.1](bringup.md)) |
-| 2026-10-01 | Arrived. Potluck verified silicon, security state, bridge chip and pins; backed up factory images; started a 24 h soak (~19:20) |
-| 2026-10-01 | Both `node_bench` roles built in Docker and role-verified; host flash script dry-run checked. No board touched |
-| 2026-10-16 | CAN transceivers removed from B and C (the wires tethered them, and Potluck's radio tests needed them apart); all three boards on the PC's USB, CP2102 on A. Powersuit's turn: B orchestrator, C limb |
-| 2026-10-15 | Read the sibling project's two weeks of bench evidence. `ps_can` now transmits in class order (TWAI's FIFO), `node_bench` drives both LED pins and builds in CI, 500 kbit/s is the first fallback. No board touched |
-| 2026-10-01 | Transceiver schematic found in the listing: Rs = 10 kΩ (slope control) and 120 Ω termination onboard. Sibling project's 250 kbit/s limit withdrawn; bench stays at 1 Mbps |
+| 2026-09-21 | Ordered — DKK 408 landed, AliExpress ([`bringup.md`](bringup.md) A.1) |
+| 2026-10-01 | Arrived. The sibling project verified silicon, security state, USB bridge and pins, and backed up the factory images. The transceiver schematic settles Rs = 10 kΩ and onboard 120 Ω; the 250 kbit/s claim is withdrawn |
+| 2026-10-04/05 | The sibling project runs CAN on B and C at 500 kbit/s; later removes the transceivers so the boards can be spread around a room |
+| 2026-10-15 | The sibling project's bench evidence read; `ps_can` sends in class order; `node_bench` drives both LED pins and joins CI |
+| 2026-10-16 | Powersuit owns the bench. CAN self-test passes on C (section 1) |
+| 2026-10-16 | The dead-man switch works on B and C, run 1 (section 2) |
+| 2026-10-16 | Run 2: B on the mains charger with the ground tie (section 2) |
+| 2026-10-16 | The real `node_limb` firmware runs on C in bench mode (section 3); its pin-map defect found |
+| 2026-10-16 | The actuation gate shown both ways (section 4) |
+| 2026-10-16 | The IMU-telemetry defect fixed and re-verified (section 3). **Project parked** — [`resuming.md`](resuming.md) |

@@ -1,5 +1,8 @@
 # Deploying Node 8
 
+Status: the script and unit have never been run on a real Pi. The ROS 2 workspace builds
+and tests in CI (`ros:jazzy`); on-target deployment is unproven.
+
 `../scripts/install_pi.sh` does the whole provisioning run on a Raspberry Pi 5
 (Ubuntu 24.04 arm64) and installs the unit in this directory. What follows is
 what the script does not, and cannot, decide for you.

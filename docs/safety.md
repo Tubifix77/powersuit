@@ -62,8 +62,10 @@ attempts automatic recovery with backoff; the safety state machine does not wait
 ## 3. E-stop
 
 - Any node may originate ESTOP (`cause` per network-map §4.4). It is sent 3× back-to-back
-  (no ACK exists on the SAFETY plane; three arbitration-priority-0x02 frames on a 42 %-loaded
-  bus have negligible combined loss probability).
+  (no ACK exists on the SAFETY plane; three arbitration-priority-0x02 frames on a 45 %-loaded
+  bus have negligible combined loss probability). Each node also sends its own SAFETY
+  frames ahead of anything else it has queued (`network-map.md` §2), so that priority is
+  real from the node's queue onward, not only on the wire.
 - Every node latches ESTOP on first reception, including the originator. The hub cut-through
   forwards SAFETY frames across both buses and SPI before local processing completes.
 - Node 8's bridge stops emitting heartbeats while ESTOP is latched — belt and braces: even a
@@ -130,3 +132,42 @@ Prevents continuous 500 fps AUDIO load on Bus 1; budget assumes worst-case duple
 - Never clear an ESTOP latch from an ISR.
 - The cloud (Node 9) has **no path** to any of this: its downlink vocabulary is
   tts/advisory/HUD only, enforced by the Node 8 gateway whitelist (`docs/link-protocol.md` §6).
+
+## 8. Evidence
+
+The state machine is host-tested (`firmware/tests/host/test_safety_core.c`), run under
+QEMU on emulated Xtensa with real elapsed time, and exercised end to end in
+`tools/suit_sim`. On real hardware (two ESP32-S3 boards, real CAN at 1 Mbit/s, no motors;
+`docs/bench-log.md`):
+
+| Behaviour | Shown |
+|---|---|
+| Heartbeat loss → PASSIVE, cause COMM_LOSS | ✓ ≈ 53–55 ms after the last beat (designed 50), two power configurations |
+| Re-arm only after continuous beats + a fresh command | ✓ ≈ 258–259 ms (designed 250) |
+| One actuation gate: energise only when commanded *and* OPERATIONAL | ✓ allowed every control tick while commanded; refused every tick from the trip until re-arm |
+| A trip forces every joint PASSIVE and resets integrators on re-arm | ✓ "setpoints zeroed", "PIDs reset" |
+| SAFETY frames leave a node ahead of its queued traffic | ✓ in loopback: first of 13, not 13th |
+| A lone node's unacknowledged traffic does not mask the trip cause | ✓ ~1,200 CAN errors/s, no bus-off, cause stayed COMM_LOSS |
+
+The timings are estimates from a frame counter, not instrumented measurements. Not yet
+shown on hardware: ESTOP propagation and CLEAR_ESTOP, the hub's cut-through, command
+staleness, flap clamps, and anything in §4.
+
+## 9. Status and limits
+
+This document is **engineering intent**. No hazard analysis, independent review, or
+assessment against a safety standard has been carried out, and nothing here should be
+read as a claim of compliance.
+
+- For a **civil** load-bearing suit, ISO 13482:2014 (safety requirements for personal
+  care robots) is the natural reference: its "restraint type physical assistant robot"
+  explicitly includes "wearable suits or non-medical physical assistance exoskeletons"
+  (§3.15.1). IEC 61508 covers generic functional safety.
+- For a **military** suit, ISO 13482 does not apply as such: its scope excludes
+  "military or public force application robots", while noting its safety principles can
+  still be useful. A defence programme would apply its own system-safety process.
+- A **cosplay** shell that moves panels and does not bear load is outside both; the
+  design here is still worth keeping, because it costs nothing and is correct if the
+  project ever grows teeth.
+
+See `docs/resuming.md` for what each path would need.

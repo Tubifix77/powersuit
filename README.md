@@ -3,29 +3,36 @@
 [![ci](https://github.com/Tubifix77/powersuit/actions/workflows/ci.yml/badge.svg)](https://github.com/Tubifix77/powersuit/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Distributed firmware and software for a nine-node cybernetic exoskeleton: seven ESP32
-edge nodes on two isolated CAN buses, a Raspberry Pi 5 class orchestrator running ROS 2,
-and a GPU cloud service reachable over 5G.
+Distributed firmware and software for a nine-node powered exoskeleton: seven ESP32 edge
+nodes on two isolated CAN buses, a Raspberry Pi 5 class orchestrator running ROS 2, and a
+GPU cloud service reachable over 5G.
 
-> **Status: the dead-man switch works on real hardware; the suit has never run.**
-> Every tier compiles and its logic is tested — 253 Python tests, 12 C suites under
-> `-Werror`, five firmware images, a ROS 2 workspace, and ten end-to-end scenarios
-> against a simulated suit. On silicon so far: a two-board bench (2026-10-16) — pull
-> the orchestrator's power and the limb drops to Passive Compliance, re-arming only
-> after 250 ms of fresh heartbeats, over real CAN at 1 Mbit/s with zero errors. No
-> actuator, hub, SPI link or orchestrator computer has run yet.
-> Current state: [`docs/bench-log.md`](docs/bench-log.md).
-> See [Verified vs unproven](#verified-vs-unproven).
+> **Status: parked on 2026-10-16, with its safety core proven on real hardware.**
+> Every tier compiles in CI and its logic is tested — 253 Python tests, 12 C suites under
+> `-Werror`, five firmware images, a ROS 2 workspace, and ten end-to-end scenarios against a
+> simulated suit. On two ESP32-S3 boards over real CAN at 1 Mbit/s, the **dead-man switch**
+> trips about 50 ms after the orchestrator's last heartbeat and re-arms only after about
+> 250 ms of fresh ones; the **one actuation gate** in the real limb firmware allows and
+> refuses energising exactly as specified; and the limb's **1 kHz control loop** keeps time
+> with no missed ticks. No motor, hub, SPI link, Pi, battery or real cloud bearer has run.
+> **To pick it up again, read [`docs/resuming.md`](docs/resuming.md).**
 
-The system specification is [`ARCHITECTURE.md`](ARCHITECTURE.md). The *normative engineering
-contract* — the one every node actually codes against — is [`docs/network-map.md`](docs/network-map.md),
-with safety semantics in [`docs/safety.md`](docs/safety.md) and the cloud link in
-[`docs/link-protocol.md`](docs/link-protocol.md). When hardware arrives,
-[`docs/bringup.md`](docs/bringup.md) is the order to prove it in, and
-[`docs/hardware-bom.md`](docs/hardware-bom.md) is what it costs, and
-[`docs/bench-log.md`](docs/bench-log.md) records what the physical bench is and what has been proven on it. Where reality forced a departure from the
-original specification, it is recorded in [network-map §12](docs/network-map.md#12-deviations-from-architecturemd)
-rather than quietly implemented.
+## Where to start
+
+| You want to… | Read |
+|---|---|
+| pick the project up again, for a cosplay suit or a load-bearing one | [`docs/resuming.md`](docs/resuming.md) |
+| know what has been proven on hardware, and what was found | [`docs/bench-log.md`](docs/bench-log.md) |
+| understand the contract every node codes against | [`docs/network-map.md`](docs/network-map.md), [`docs/safety.md`](docs/safety.md), [`docs/link-protocol.md`](docs/link-protocol.md) |
+| bring hardware up, in a safe order | [`docs/bringup.md`](docs/bringup.md) — Appendix A is the two-board bench, wired per [`docs/bench-wiring.html`](docs/bench-wiring.html) |
+| know what it costs | [`docs/hardware-bom.md`](docs/hardware-bom.md) |
+| change code without breaking an invariant | [`CLAUDE.md`](CLAUDE.md) |
+
+[`ARCHITECTURE.md`](ARCHITECTURE.md) is the original system specification. The *normative*
+contract is [`docs/network-map.md`](docs/network-map.md); where engineering reality forced a
+departure from the specification, it is recorded in
+[network-map §12](docs/network-map.md#12-deviations-from-architecturemd) rather than
+quietly implemented.
 
 ## Topology
 
@@ -44,35 +51,30 @@ rather than quietly implemented.
    6 helmet                    5 flight
 ```
 
-The two buses are deliberately isolated; Node 7 is the only bridge between them, and the
+The two buses are deliberately isolated; Node 7 is the only bridge between them and the
 only path to the orchestrator. Nothing on a limb bus can talk to the cloud except through
 two hops that are both allowed to say no.
 
-## Repository layout
-
-| Path | What lives there |
-|------|------------------|
-| `common/c`, `common/python` | The protocol contract, implemented twice and locked together by generated test vectors: CAN ID codec, 8-byte wire structs, SPI framing, CRC16, IMA ADPCM, cloud envelope |
-| `firmware/components` | Shared ESP-IDF components: `ps_can`, `ps_safety`, `ps_router`, `ps_spibridge`, `ps_uros`, `ps_ctl`, `ps_audio`, `ps_proto` |
-| `firmware/apps` | One ESP-IDF project per node: `node_limb` (Nodes 1–4 via Kconfig), `node_flight`, `node_helmet`, `node_chest_hub` |
-| `firmware/tests/host` | Every pure-C module compiled and tested on the host under `-Werror` |
-| `orchestrator/ros2_ws` | Node 8 ROS 2 Jazzy workspace |
-| `cloud` | Node 9 service and its container |
-| `tools/suit_sim` | End-to-end simulation of the whole suit, in-process |
-| `docs` | The normative contract |
-
 ## Design rules worth knowing before you change anything
-
-**Rate policy.** Anything faster than 20 Hz travels as a packed 8-byte TELEM frame, and
-Node 8 synthesises the ROS message. This is not an optimisation: a single
-`sensor_msgs/Imu` over micro-ROS is roughly 70 CAN frames, so one limb publishing at
-100 Hz would exceed an entire 1 Mbps bus. With the TELEM plane, worst-case load is about
-42% on bus 1 and 30% on bus 2 ([§10](docs/network-map.md)).
 
 **The heartbeat is a dead-man switch.** Only Node 8 emits it, at 100 Hz. Any actuating node
 that goes 50 ms without one drops into Passive Compliance. No component may synthesise,
-repeat, or extrapolate a heartbeat on behalf of Node 8 — if the SPI link dies, the beats
-stop and the suit goes limp, which is the correct failure direction.
+repeat or extrapolate a heartbeat on behalf of Node 8 — if the SPI link dies, the beats
+stop and the suit goes limp, which is the correct failure direction. *Shown on hardware.*
+
+**One actuation gate.** Every torque or servo write goes through `ps_safety_can_actuate()`,
+in one place; callers never each check state. *Shown on hardware, both directions.*
+
+**SAFETY first starts inside the node.** CAN arbitration only ranks frames already on the
+bus, and the TWAI driver queues first-in, first-out — so each node sends its own frames in
+class order, SAFETY first, one at a time. Without it a heartbeat could wait behind a dozen
+of its own node's telemetry frames. *Found by the bench, fixed, shown on hardware.*
+
+**Rate policy.** Anything faster than 20 Hz travels as a packed 8-byte TELEM frame, and
+Node 8 synthesises the ROS message. A single `sensor_msgs/Imu` over micro-ROS is roughly 70
+CAN frames, so one limb publishing it at 100 Hz would exceed a whole 1 Mbps bus. With the
+TELEM plane, worst-case load is about 45 % on bus 1 and 33 % on bus 2
+([§10](docs/network-map.md), corrected from 42/30 % by a bench measurement).
 
 **The cloud cannot move the suit.** Node 8's gateway accepts exactly six message types from
 Node 9 — speech, advisories, HUD hints and session control. There is deliberately no
@@ -80,14 +82,34 @@ message by which the cloud can reach an actuator, and `suit_sim` scenario 10 exi
 a local safety trip beats any cloud round-trip.
 
 **Hardware does what hardware must.** The specified sub-5 µs battery short-circuit trip is an
-analog comparator latching the gate in under a microsecond; firmware is the observer that
-timestamps it, broadcasts the e-stop and manages the interlocked re-arm. A software-only
-guarantee at that timescale would not be honest ([safety §4](docs/safety.md)).
+analog comparator latching the gate in under a microsecond; firmware observes, timestamps,
+broadcasts the e-stop and manages the interlocked re-arm. A software-only guarantee at that
+timescale would not be honest ([safety §4](docs/safety.md)).
+
+## Repository layout
+
+| Path | What lives there |
+|------|------------------|
+| `common/c`, `common/python` | The protocol contract, implemented twice and locked together by generated test vectors: CAN ID codec, 8-byte wire structs, SPI framing, CRC16, IMA ADPCM, cloud envelope |
+| `firmware/components` | Shared ESP-IDF components: `ps_can` (with its class-ordered transmit queue `ps_can_txq`), `ps_safety`, `ps_router`, `ps_spibridge`, `ps_uros`, `ps_ctl`, `ps_audio`, `ps_proto` |
+| `firmware/apps` | One ESP-IDF project per node — `node_limb` (Nodes 1–4), `node_flight`, `node_helmet`, `node_chest_hub` — plus `node_bench` (the two-board bench and its CAN self-test) and `node_qemu_test` (on-target checks under emulation) |
+| `firmware/tests/host` | Every pure-C module compiled and tested on the host under `-Werror` |
+| `firmware/tools` | `build_bench.sh`, `flash_bench.ps1`, `read_console.py` for the bench; `qemu_test.sh`; `fetch_deps.sh` for micro-ROS |
+| `orchestrator/ros2_ws` | Node 8: CAN/SPI bridge, state estimation, IK, voice, cloud gateway, black box, bringup |
+| `cloud` | Node 9 service and its container |
+| `tools/suit_sim` | End-to-end simulation of the whole suit, in-process |
+| `docs` | The contract, the bring-up order, the bench record, the BOM, and the resuming guide |
 
 ## Building and testing
 
 Everything below runs from the repository root. The Python tiers run natively; firmware and
-ROS 2 build in containers, so Docker is the only hard prerequisite for those.
+ROS 2 build in containers, so Docker is the only hard prerequisite for those. The quickest
+check of everything:
+
+```bash
+bash tools/verify.sh              # every tier, ~20 lines of output; full logs in .verify-logs/
+bash tools/verify.sh py           # just the native Python suites, seconds, no Docker
+```
 
 ### Python: protocol, cloud, and the integration simulator
 
@@ -98,8 +120,8 @@ pip install -e ./common/python -e "./cloud[dev]" -e ./tools/suit_sim
 pytest common/python/tests -q && pytest cloud/tests -q && pytest tools/suit_sim/tests -q
 ```
 
-Regenerating the cross-language vectors after a protocol change (this rewrites both the
-Python fixture and the C header, and CI fails if you forget):
+After any protocol change, regenerate the cross-language vectors, which rewrites both the
+Python fixture and the C header (CI fails if you forget):
 
 ```bash
 python common/python/tests/gen_vectors.py
@@ -111,10 +133,12 @@ python common/python/tests/gen_vectors.py
 docker run --rm -v "$PWD:/repo" -w /repo ros:jazzy bash -c "cmake -S firmware/tests/host -B /tmp/host && cmake --build /tmp/host -j && ctest --test-dir /tmp/host --output-on-failure"
 ```
 
+Any Linux with gcc and CMake works too, WSL included.
+
 ### Firmware
 
-One image serves all four apps. The build directory and ccache live in named volumes
-because NTFS bind mounts are slow:
+One Docker image, `espressif/idf:v5.5.5`, builds every app. The build directory and ccache
+live in named volumes because NTFS bind mounts are slow:
 
 ```bash
 docker volume create ps_fw_build && docker volume create ps_ccache
@@ -125,11 +149,10 @@ docker run --rm -v "$PWD:/ws" -v ps_fw_build:/builds -v ps_ccache:/root/.ccache 
 ```
 
 Substitute `node_limb`, `node_flight` or `node_helmet` for the other targets. `node_limb`
-covers Nodes 1–4; select which one with `CONFIG_PS_NODE_ID` via `idf.py menuconfig`.
+covers Nodes 1–4; pick which one under *Limb node identity* in `idf.py menuconfig`.
 
-micro-ROS is an optional dependency. Without it the XRCE plane compiles out and the node
-still runs every safety, control, telemetry and audio function — which is what you want for
-bench bring-up. To enable it:
+micro-ROS is optional. Without it the XRCE plane compiles out and every node still runs its
+safety, control, telemetry and audio functions. To enable it:
 
 ```bash
 bash firmware/tools/fetch_deps.sh
@@ -137,17 +160,12 @@ bash firmware/tools/fetch_deps.sh
 
 ### On-target self-test under emulation
 
-Espressif's QEMU fork emulates the ESP32-S3, so the logic can be run on Xtensa
-LX7 under real FreeRTOS — not a substitute for hardware, but it reaches things
-host tests cannot:
+Espressif's QEMU fork emulates the ESP32-S3, so the logic runs on Xtensa LX7 under real
+FreeRTOS — not a substitute for hardware, but it reaches things host tests cannot:
 
 ```bash
 bash firmware/tools/qemu_test.sh
 ```
-
-QEMU models the CPU, RAM, flash, UART and timers, but not TWAI, MCPWM, I2S, the
-SPI slave or the ADC — hence a dedicated self-test image rather than booting a
-node application.
 
 ### ROS 2 workspace
 
@@ -156,8 +174,26 @@ docker volume create ps_ros_deps && docker volume create ps_ros_out
 docker run --rm -v "$PWD:/repo:ro" -v ps_ros_deps:/deps -v ps_ros_out:/out -e ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST ros:jazzy bash /repo/tools/ros_ci.sh
 ```
 
-The first run imports and builds the micro-ROS agent from source, which takes a while; the
-named volumes make subsequent runs quick.
+The first run builds the micro-ROS agent from source, which takes a while; the named
+volumes make later runs quick.
+
+## Running on the bench
+
+Two ESP32-S3-DevKitC-1 boards, two SN65HVD230 CAN modules and ten female-female jumpers —
+no soldering ([`docs/bringup.md`](docs/bringup.md) Appendix A,
+[`docs/bench-wiring.html`](docs/bench-wiring.html)). Docker Desktop on Windows cannot reach a
+COM port, so firmware is built in Docker and flashed from the host:
+
+```bash
+bash firmware/tools/build_bench.sh                 # both node_bench roles, verified
+BENCH_LIMB=1 bash firmware/tools/build_bench.sh    # the real node_limb, bench mode
+BENCH_SELFTEST=1 bash firmware/tools/build_bench.sh  # one-board CAN self-test
+```
+
+```powershell
+powershell -File firmware/tools/flash_bench.ps1 -Role orch -Port COM4    # -DryRun opens no port
+<idf-python> firmware/tools/read_console.py COM5 --seconds 30
+```
 
 ## Running the suit without hardware
 
@@ -185,21 +221,17 @@ ros2 launch suit_bringup sim.launch.py mock_port:=9700
 ## Deploying
 
 - **Node 8**: `orchestrator/scripts/install_pi.sh` provisions Ubuntu 24.04 on a Pi 5 and
-  installs the systemd unit in `orchestrator/systemd/`.
+  installs the systemd unit in `orchestrator/systemd/`. Never run on a real Pi.
 - **Node 9**: `docker compose -f cloud/docker-compose.yml up app`. The default engine is a
   deterministic mock. Point it at a real model with the `ollama` profile (CPU, no account
   needed) or the `gpu` profile (vLLM), both through the same OpenAI-compatible adapter.
-- **Nodes 1–7**: built in Docker, flashed from the host — Docker Desktop on Windows
-  cannot reach a COM port. For the two-board bench that is
-  `bash firmware/tools/build_bench.sh`, then `firmware/tools/flash_bench.ps1`
-  ([bringup A.4d](docs/bringup.md)). The per-app board headers hold the bench pinouts.
+- **Nodes 1–7**: built in Docker, flashed from the host with esptool; the bench scripts
+  above do this for the bench images ([bringup A.4d](docs/bringup.md)).
 
 ## Verified vs unproven
 
 Being explicit, because "it compiles" and "it works" are very different claims for a
 machine that applies force to a human body.
-
-**Verified in CI and locally**
 
 | Tier | What is actually checked |
 |------|--------------------------|
@@ -207,45 +239,46 @@ machine that applies force to a human body.
 | Cloud (Node 9) | 73 tests against the real server over a real WebSocket |
 | Orchestrator (Node 8) | 74 Python tests, 3 C++ gtest suites, full `colcon build` |
 | Pure C firmware logic | 12 suites under `-Wall -Wextra -Werror` — FOC maths, Mahony filter, safety state machine, CAN routing, CAN transmit order, ADPCM |
-| Firmware images | All four suit apps build for ESP32-S3/P4, with and without micro-ROS, plus the `node_bench` image for the two-board bench |
-| Whole-suit behaviour | 10 scenarios: watchdog trip and re-arm timing, e-stop propagation and replay rejection, SPI corruption recovery, voice round-trip, link failover, local-beats-cloud ordering |
-| On silicon (two-board bench) | ESP32-S3 boards over real CAN at 1 Mbit/s: the dead-man switch trips on heartbeat loss and re-arms after the 250 ms window; in loopback, a SAFETY frame overtakes a 12-frame queue (first, not 13th). See `docs/bench-log.md` |
-| On-target (QEMU) | 27 checks on emulated ESP32-S3: packed-struct access on Xtensa, single-precision FPU, dual-core scheduling, stack headroom, watchdog timing against real elapsed time |
+| Firmware images | All four suit apps build for ESP32-S3/P4, with and without micro-ROS, plus `node_bench` |
+| Whole-suit behaviour | 10 simulated scenarios: watchdog trip and re-arm timing, e-stop propagation and replay rejection, SPI corruption recovery, voice round-trip, link failover, local-beats-cloud ordering |
+| On-target (QEMU) | 27 checks on emulated ESP32-S3: packed structs on Xtensa, the FPU, dual-core scheduling, stack headroom, watchdog timing against real elapsed time |
+| **On silicon** | Two ESP32-S3 boards, real CAN at 1 Mbit/s: the dead-man switch (trip ≈ 53–55 ms, re-arm ≈ 258–259 ms, by frame counter), the one actuation gate both ways, the real `node_limb`'s 1 kHz loop (worst iteration ~200 µs, 0 missed ticks), SAFETY overtaking a 12-frame queue — [`docs/bench-log.md`](docs/bench-log.md) |
 | Static analysis | `cppcheck` clean |
 
-**Not proven, and only provable on hardware**
+**Not proven, and only provable on more hardware:** any actuator and its peripheral
+configuration (does the MCPWM emit the waveform the registers imply?), the chest hub, the SPI
+link at 20 MHz, the Pi, micro-ROS against a real agent, CAN arbitration with more than two
+nodes at the predicted load, the analog battery trip chain, and the cloud over a real bearer.
 
-Peripheral configuration (does the MCPWM emit the waveform the registers imply?),
-real-time behaviour under load, SPI signal integrity at 20 MHz, CAN arbitration at the
-predicted bus load, stack sizing, and the analog BMS trip chain. The bench pinouts in
-each `board_*.h` are plausible defaults, not a verified schematic.
-
-[`docs/bringup.md`](docs/bringup.md) is the order to prove all of that in, arranged so
-each step is verifiable before anything above it can hurt someone.
+**Known defect, open:** `node_limb`'s pin map cannot run on an ESP32-S3 DevKit — it uses GPIO
+that do not exist on the S3 and the PSRAM pins. Fixing it depends on the choice of actuator,
+so it is recorded rather than renumbered ([`docs/resuming.md`](docs/resuming.md)); the limb
+runs in a bench mode without motor hardware meanwhile.
 
 ## Safety
 
-This drives motors attached to a person. Two things are worth stating plainly:
+This is designed to drive motors attached to a person. Three things are worth stating
+plainly:
 
-The design fails toward limpness on purpose. Lose the heartbeat for 50 ms and every
-limb goes back-drivable; kill the orchestrator and the whole suit goes slack. That is
-the correct behaviour, not a bug, and any change that makes the suit *hold* through a
-fault is a change in the wrong direction.
+The design fails toward limpness on purpose. Lose the heartbeat for 50 ms and every limb
+goes back-drivable; kill the orchestrator and the whole suit goes slack. That is the correct
+behaviour, and any change that makes the suit *hold* through a fault is a change in the
+wrong direction.
 
 The sub-microsecond battery short-circuit trip is **hardware** — an analog comparator
 latching the gate. Firmware only observes it. `ARCHITECTURE.md` asks for it in software;
-[`docs/safety.md`](docs/safety.md) §4 explains why that cannot honestly be delivered
-there. Do not reimplement it in firmware because the hardware is not ready yet.
+[`docs/safety.md`](docs/safety.md) §4 explains why that cannot honestly be delivered there.
 
-The MIT licence's warranty disclaimer is not a formality here. Nobody has run this on a
-real suit.
+The safety design is **engineering intent, not an assessed system**: no hazard analysis or
+assessment against any standard has been done ([safety §9](docs/safety.md)). The MIT
+licence's warranty disclaimer is not a formality here.
 
 ## Contributing
 
-The contract in [`docs/`](docs) is normative: if a change alters behaviour on the wire,
-in the safety state machine, or in the cloud link, the document changes in the same
-commit. [`CLAUDE.md`](CLAUDE.md) lists the invariants a change must not break and the
-reasoning behind each.
+The contract in [`docs/`](docs) is normative: if a change alters behaviour on the wire, in
+the safety state machine, or in the cloud link, the document changes in the same commit.
+[`CLAUDE.md`](CLAUDE.md) lists the invariants a change must not break and the reasoning
+behind each.
 
 ```bash
 bash tools/dev.sh setup && bash tools/dev.sh test    # no Docker needed

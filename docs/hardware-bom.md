@@ -39,7 +39,7 @@ This is the part this repository is actually about, and it is the cheap part.
 | 1–4, 5, 6 | ESP32-S3-DevKitC-1 N16R8 | 6 | €7.73 | €46 | **Paid** — AliExpress, 2026-09-21, DKK 57.69 each |
 | 7 | ESP32-P4 dev board | 1 | ~€20 | €20 | Newer part, thinner supply, wider price spread |
 | 1–7 | SN65HVD230 CAN transceiver | 7 | €2.17 | €15 | **Paid** — AliExpress, 2026-09-21, DKK 16.22 each. One per node; only the two bus ends keep their 120 Ω |
-| 1–5 | MPU-6050 IMU (or MPU-6500) | 5 | ~€3 | €15 | Four limbs plus the torso IMU on node 5 |
+| 1–5 | MPU-6050 IMU (or MPU-6500) | 5 | ~€3 | €15 | Four limbs plus the torso IMU on node 5. **Most breakouts ship with the header pins loose** — for a no-soldering build, buy pre-soldered ones and check the photos; a Qwiic/STEMMA connector alone does not help if its cable ends in bare pins |
 | 6 | INMP441 I2S MEMS microphone | 1 | ~€4 | €4 | |
 | 6 | MAX98357A I2S amp + small speaker | 1 | ~€6 | €6 | |
 | 6 | ST7789 240×240 SPI display | 1 | ~€7 | €7 | Stand-in for the spec's twin micro-OLEDs |
@@ -81,6 +81,11 @@ Adds to §2. The shell moves panels and looks alive; it does not carry you.
 Servos on this scale draw real current — budget the BEC and battery properly, and
 keep servo power off the ESP32 rails entirely.
 
+**On this path the limbs become servo nodes.** `node_limb`'s FOC motor-control path is
+not needed: `node_flight` already drives twelve servos through a clamped, rate-limited
+envelope under the safety gate, and a servo limb reuses that pattern. One PWM pin per
+joint also removes `node_limb`'s pin-budget problem (`docs/resuming.md`).
+
 ---
 
 ## 4. Tier C — the suit as `board_limb.h` actually specifies it
@@ -94,9 +99,18 @@ This is where the honesty matters. The joint table specifies:
 | Hip | 140 N·m | 2 |
 | Knee | 120 N·m | 2 |
 
-For scale, a **CubeMars AK80-9 is $479.90 for 9 N·m rated** ([store.cubemars.com](https://store.cubemars.com/products/ak80-9)).
-That is an integrated unit — frameless motor, planetary gearbox, encoder and FOC
-driver in one housing — and it is one fifth of the torque the *wrist* wants.
+For scale, a **CubeMars AK80-9 is $479.90 for 9 N·m rated** ([store.cubemars.com](https://store.cubemars.com/products/ak80-9),
+price re-checked 2026-10-16). The listing describes it as integrating "a high-performance
+brushless DC motor, a self-developed planetary reducer, an encoder, and an integrated
+drive" — and it is one fifth of the torque the *wrist* wants.
+
+**Integrated modules change the firmware architecture, for the better.** CubeMars's AK
+Series Module Driver User Manual (V1.0.15.X) gives the modules CAN_H/CAN_L connectors,
+lists the AK80-9 in its MIT-mode tables, and specifies "CAN Speed: 1 MHz" — the same bus
+rate as this suit. A limb built on such modules sends commands over CAN instead of
+driving motor gates, which removes `node_limb`'s 12-gate pin-budget problem entirely. The
+modules speak their own frame format, so they want a bus of their own or a bridge in the
+limb node; that is a design decision for whoever builds it (`docs/resuming.md`).
 
 Integrated joint modules spanning this range exist (rated torques from roughly
 2 N·m to 586 N·m, with harmonic reducers and absolute encoders — see
@@ -131,13 +145,17 @@ by firmware: see `docs/safety.md` §4.
 
 ## 5. What to actually buy, in order
 
-1. **Tier A bench** — `docs/bringup.md` Appendix A. Proves the network and the
-   dead-man switch. **Ordered 2026-09-21: DKK 408 landed (~€55), Danish import
-   charges included.** Three boards, two transceivers, F-F jumpers, a 6-port
-   charger, and a CP2102 that only the sibling project needs.
-2. **Add the §2 electronics incrementally** as each node becomes interesting.
+1. **Tier A bench — done.** `docs/bringup.md` Appendix A. Ordered 2026-09-21, DKK 408
+   landed (~€55) including Danish import charges: three boards, two transceivers, F-F
+   jumpers, a 6-port charger, and a CP2102 that only the sibling project needs. It proved
+   the dead-man switch, the actuation gate and the limb firmware's timing
+   (`docs/bench-log.md`).
+2. **Next, for either path:** a USB logic analyser (~€10) to turn the bench's timing
+   estimates into measurements; an ESP32-P4 board (~€20) for the hub; a Raspberry Pi 5
+   (~€110) for the orchestrator. Then `docs/bringup.md` §3 onwards.
+3. **Add the §2 electronics incrementally** as each node becomes interesting.
    Every node except the hub is under €20 of parts.
-3. **Decide Tier B or C before buying anything mechanical.** They share the
+4. **Decide Tier B or C before buying anything mechanical.** They share the
    electronics in §2 and share nothing else.
 
 If the answer is cosplay — and `docs/safety.md` was written for a machine that can
@@ -148,7 +166,8 @@ costs about a thousand euros, most of it shell and servos.
 
 ## Sources
 
-- [CubeMars AK80-9 store listing](https://store.cubemars.com/products/ak80-9) — $479.90, 9 N·m rated (exact, fetched)
+- [CubeMars AK80-9 store listing](https://store.cubemars.com/products/ak80-9) — $479.90, 9 N·m rated, integrated drive (exact, fetched 2026-09 and re-checked 2026-10-16)
+- [CubeMars AK Series Module Driver User Manual V1.0.15.X](https://cdn.shopify.com/s/files/1/0673/6848/5000/files/AK-Series-Module-Driver-User-Manual-V1.0.15.X.pdf) — CAN_H/CAN_L connectors, MIT and servo modes, AK80-9 in the MIT tables, "CAN Speed: 1 MHz" (read from the PDF, 2026-10-16)
 - [CubeMars AKE series robotic actuators](https://www.cubemars.com/categorys/ake-series-robotic-actuator) — integrated joint module range
 - [ESP32-S3-DevKitC-1 N16R8, eBay listing](https://www.ebay.com/itm/355163211698) — US $7.41 (exact, from search results)
 - [ESP32-S3-DevKitC-1 N16R8 on AliExpress](https://www.aliexpress.com/item/1005006240070551.html) — price not retrievable automatically

@@ -6,6 +6,10 @@ original system specification; where engineering reality forced a deviation, it 
 `common/c/`, the Python mirror in `common/python/powersuit_proto/`; both are locked together by
 shared test vectors. Change rule: edit this document and both implementations in the same commit.
 
+Hardware evidence so far: the CAN layer, SAFETY-plane priority and the heartbeat watchdog
+have run on two ESP32-S3 boards at 1 Mbit/s (`docs/bench-log.md`). The hub, the SPI link,
+micro-ROS against a real agent and the cloud link have run only in simulation and tests.
+
 ## 1. Topology and node registry
 
 ```
@@ -275,9 +279,15 @@ actuation path.
 
 | Bus | Contributors | Frames/s | Load |
 |-----|--------------|----------|------|
-| CAN 1 | 2 arms × (5 TELEM + 2 CMD) @100 Hz = 1400; audio duplex worst 1000; helmet XRCE/HUD ≈ 200; heartbeat 100; XRCE background 100 | ≈ 2800 | **≈ 42 %** |
-| CAN 2 | 2 legs × 700 = 1400; flight (2 CMD @100 Hz + AERO/FLAP TELEM) ≈ 400; heartbeat 100; XRCE 100 | ≈ 2000 | **≈ 30 %** |
-| SPI | all of the above ≈ 4800 records/s × 16 B ≈ 77 kB/s | — | ≈ 15 % of 512 B @ 1 kHz capacity |
+| CAN 1 | 2 arms × (6 TELEM + 2 CMD) @100 Hz = 1600; audio duplex worst 1000; helmet XRCE/HUD ≈ 200; heartbeat 100; XRCE background 100 | ≈ 3000 | **≈ 45 %** |
+| CAN 2 | 2 legs × 800 = 1600; flight (2 CMD @100 Hz + AERO/FLAP TELEM) ≈ 400; heartbeat 100; XRCE 100 | ≈ 2200 | **≈ 33 %** |
+| SPI | all of the above ≈ 5200 records/s × 16 B ≈ 83 kB/s | — | ≈ 16 % of 512 B @ 1 kHz capacity |
+
+Six TELEM streams per limb, not five: JOINT_STATE goes out once per joint (two per limb),
+plus IMU_QUAT, IMU_ACC, IMU_GYR and FORCE. Measured on the bench, 2026-10-16: a real
+`node_limb` sent ~607 frames/s with all six (`docs/bench-log.md` §3); a limb without an
+IMU sends three. Corrected from an earlier count of five, which put the worst case at
+42 % / 30 %.
 
 Typical load is roughly half of worst case (audio is VOX-gated half-duplex in practice).
 

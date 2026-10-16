@@ -4,9 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Firmware and software for a nine-node cybernetic exoskeleton: seven ESP32 edge nodes on two
+Firmware and software for a nine-node powered exoskeleton: seven ESP32 edge nodes on two
 isolated CAN buses, a Raspberry Pi 5 class ROS 2 orchestrator, and a cloud AI service.
 `README.md` is the human-facing entry point.
+
+**Status: parked on 2026-10-16.** Every tier builds and is tested; on a two-board bench the
+dead-man switch, the actuation gate and the limb's 1 kHz loop are proven on silicon. The
+next work needs hardware and a decision between a cosplay suit and a load-bearing one.
+`docs/resuming.md` is the way back in; `docs/bench-log.md` is the record of what the
+hardware has shown — update it when something is verified, not when it is planned.
 
 **`ARCHITECTURE.md` is the original specification, not the contract.** The normative contract
 every node codes against is `docs/network-map.md` (topology, CAN ID layout, message catalog,
@@ -24,8 +30,10 @@ artifact). If you edit it, match the existing escaping; don't mix styles.
 |------|----------|
 | `common/c`, `common/python` | The protocol contract implemented twice, locked together by generated vectors |
 | `firmware/components` | `ps_proto`, `ps_can`, `ps_safety`, `ps_router`, `ps_spibridge`, `ps_uros`, `ps_ctl`, `ps_audio` |
-| `firmware/apps` | `node_limb` (Nodes 1–4), `node_flight` (5), `node_helmet` (6), `node_chest_hub` (7) |
+| `firmware/apps` | `node_limb` (Nodes 1–4), `node_flight` (5), `node_helmet` (6), `node_chest_hub` (7); `node_bench` (two-board bench + CAN self-test); `node_qemu_test` |
 | `firmware/tests/host` | Every pure-C module, compiled and tested on the host |
+| `firmware/tools` | `build_bench.sh`, `flash_bench.ps1`, `read_console.py`, `qemu_test.sh`, `fetch_deps.sh` |
+| `docs` | The contract (`network-map`, `safety`, `link-protocol`), `bringup`, `bench-log`, `bench-wiring.html`, `hardware-bom`, `resuming` |
 | `orchestrator/ros2_ws` | Node 8: bridge, estimation, IK, voice, cloud gateway, blackbox, bringup |
 | `cloud` | Node 9 service and container |
 | `tools/suit_sim` | Whole-suit simulation with ten end-to-end scenarios |
@@ -67,9 +75,28 @@ access to COM ports. Build in Docker, flash from the host (`docs/bringup.md` A.4
 For the two-board bench:
 
 ```bash
-bash firmware/tools/build_bench.sh                                       # both roles, verified
-powershell -File firmware/tools/flash_bench.ps1 -Role limb -Port COM4    # -DryRun opens no port
+bash firmware/tools/build_bench.sh                    # both node_bench roles, verified
+BENCH_LIMB=1 bash firmware/tools/build_bench.sh       # the real node_limb, bench mode
+BENCH_SELFTEST=1 bash firmware/tools/build_bench.sh   # one-board CAN self-test
+powershell -File firmware/tools/flash_bench.ps1 -Role <orch|limb|limbapp|selftest> -Port COMx   # -DryRun opens no port
+<idf-python> firmware/tools/read_console.py COMx --seconds 30 [--until TEXT]                    # console from boot, non-interactive
 ```
+
+Identify boards by CH343 serial number (register in `docs/bench-log.md`), not by COM
+number, and check it before every flash. `read_console.py` needs the ESP-IDF
+environment's Python (`%USERPROFILE%\.espressif\python_env\...\python.exe`), which has
+pyserial; opening a port with ordinary settings resets the board.
+
+**`node_limb` must only go onto a DevKit in bench mode** (`CONFIG_PS_LIMB_BENCH`).
+`board_limb.h`'s pin map uses GPIO 22–25, which do not exist on the ESP32-S3, and 35–37,
+the octal PSRAM; `flash_bench.ps1` refuses a non-bench limb image. Replacing the map is a
+hardware decision recorded in `docs/resuming.md` — do not renumber it to make it compile
+somewhere.
+
+**Check hardware facts against primary text.** Two wrong claims entered this repo from
+summaries — a "250 kbit/s cap" from a model's reading of TI's datasheet, and a "1.8 V
+GPIO47/48" relayed from another project. Extract the PDF or page text and search it
+yourself; label what is measured, what is from a datasheet, and what is only reported.
 
 **Never launch Docker Desktop from a script or a command.** On this PC it
 crash-loops on stranded socket files when started carelessly. If `docker info`

@@ -6,6 +6,10 @@ kept schema-identical but is optional and never on the test path. Reference code
 `cloud/cloud_ai_core/protocol.py` (server) and `orchestrator/.../suit_cloud_gateway` (client);
 `tools/suit_sim` exercises both.
 
+Status: exercised by the cloud tests and `tools/suit_sim` over real WebSockets on one
+machine. Never run over a real 5G, Wi-Fi or satellite bearer, and never between a Pi and
+a hosted server.
+
 ## 1. Connection lifecycle
 
 1. Client (Node 8 gateway) connects to `wss://<endpoint>/link` over the currently selected
