@@ -200,6 +200,27 @@ static void heartbeat_task(void *arg)
             (void)ps_can_send(s_can, &mf, 0);
         }
 
+        /* 10 Hz position hold at 0 for both joints of node 1 (arm_right, the
+         * identity node_limb boots as): gives a real node_limb in bench mode
+         * (bringup.md A.6) something to energise, so its safety gate's yes-path
+         * runs. Addressed, never broadcast — a joint command reaches one limb.
+         * node_bench's own limb role ignores JOINT_CMD. */
+        if ((seq % 10u) == 0u) {
+            for (uint8_t j = 0; j < 2; j++) {
+                ps_joint_cmd_t jc;
+                memset(&jc, 0, sizeof(jc));
+                jc.joint = j;
+                jc.mode = PS_JMODE_POSITION;
+                jc.pos_crad = 0;
+                ps_can_frame_t cf;
+                cf.id = ps_can_id_pack(PS_CLS_CONTROL, PS_NODE_ORCH, PS_NODE_ARM_R,
+                                       PS_T_JOINT_CMD, 0);
+                cf.dlc = sizeof(jc);
+                memcpy(cf.data, &jc, sizeof(jc));
+                (void)ps_can_send(s_can, &cf, 0);
+            }
+        }
+
         /* Green blink so you can see it is alive without a serial console. */
         paint_state(PS_STATE_OPERATIONAL, hb.uptime_ms);
         seq++;

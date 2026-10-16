@@ -296,10 +296,30 @@ brought its hardware up, and the absent IMU's I2C timeout takes ~38 ms, so ticks
 up and the first iteration counted them. The task now discards that backlog before its
 loop starts; the re-run reads 0.
 
-**Not exercised yet:** the gate's *yes* path. Nothing sends the limb a JOINT_CMD, so no
-joint ever asks to be energised. Next step: have the bench orchestrator command a
-position hold, so would-actuate climbs while OPERATIONAL and stops the instant B is
-pulled — the one actuation gate, shown on silicon.
+### The one actuation gate, both ways
+
+The bench orchestrator now sends node 1 a 10 Hz position hold for both joints
+(JOINT_CMD, addressed to node 1, never broadcast), so the limb's joints ask to be
+energised and the gate has to decide. C recorded for 100 s while the owner pulled B
+for about 30 s (`.verify-logs/gate_C.log`):
+
+| | C logged | |
+|---|---|---|
+| OPERATIONAL, B commanding | `cmd ok` +200 per 10 s; **would-actuate +~20,000 per 10 s** — 2 joints × 1,000 ticks/s, every tick allowed | ✓ |
+| B pulled | **`2 -> 3 (cause 6)`**, "setpoints zeroed, joints forced PASSIVE" | ✓ |
+| B absent ~30 s | **would-actuate frozen at 73,816** across three reports — every tick refused | ✓ |
+| B back | `3 -> 2`, "PIDs reset"; would-actuate climbing at ~2,000/s again | ✓ |
+
+The freeze is exact: 7.8 s at 2,000/s from the last report before the trip predicts
+73,818, and it stopped at 73,816.
+
+**The 1 kHz loop kept time through an error storm.** With B unpowered, C's ~600 TELEM
+frames/s had no node to acknowledge them, so every one failed: `err` rose ~1,200/s,
+the normal behaviour of a CAN node left alone. Throughout, the worst iteration stayed
+211 µs with 0 missed ticks; C never went bus-off (acknowledgement errors alone do not
+drive a node there), so the trip cause stayed heartbeat loss, and the errors stopped
+the instant B returned. Re-arm takes JOINT_CMDs that arrive while still PASSIVE as the
+fresh command, so the joints energise as soon as the 250 ms window is met.
 
 ### Known defect found on the way: node_limb's pin map
 
@@ -331,6 +351,7 @@ guarded now. `node_flight`'s pins are all valid; its servo on GPIO38 shares the 
 
 | Date | Event |
 |---|---|
+| 2026-10-16 | **The one actuation gate, on silicon:** with B commanding a position hold, would-actuate climbs 2,000/s while OPERATIONAL and freezes at the trip until re-arm. Loop kept time through ~1,200 errors/s with B gone |
 | 2026-10-16 | **The real `node_limb` firmware runs on C** in bench mode: 1 kHz loop, worst iteration ~200 µs, 0 missed ticks; ~607 TELEM frames/s out, 0 errors. Found: `board_limb.h`'s pin map uses GPIO that do not exist on the S3 |
 | 2026-10-16 | Dead-man test repeated with B on the mains charger and wire 11 fitted (green on the real bench): trip cause 6 at ≈ 53 ms, re-arm ≈ 258 ms, 0 errors |
 | 2026-10-16 | **The dead-man switch works on silicon.** B orchestrator, C limb, 1 Mbit/s, 0 errors. Pulling B: C to PASSIVE, cause COMM_LOSS, ≈ 55 ms after the last beat; plugging B back: OPERATIONAL ≈ 259 ms after beats resumed |

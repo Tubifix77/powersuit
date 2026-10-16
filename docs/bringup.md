@@ -541,8 +541,12 @@ node_limb: timing: loop max ... us, missed ticks ..., ctrl stack free ... B, wou
 ```
 
 `loop max` is the worst single control iteration against a 1,000 µs period; `missed
-ticks` counts periods that elapsed while an iteration was still running; `would-actuate`
-stays 0 until something commands a joint out of PASSIVE.
+ticks` counts periods that elapsed while an iteration was still running. The bench
+orchestrator sends node 1 a 10 Hz position hold, so `would-actuate` climbs about 2,000
+per second while OPERATIONAL. **Pull the orchestrator and it must freeze** — the trip
+forces every joint PASSIVE and the gate refuses every tick — and resume after re-arm.
+That is the one actuation gate (CLAUDE.md) shown working. Expect `err` to climb while
+the orchestrator is gone: the limb's telemetry has no node to acknowledge it.
 
 **Why bench mode exists at all:** `board_limb.h`'s pin map cannot run on this board —
 GPIO 22–25 do not exist on the ESP32-S3, 35–37 are the PSRAM on N16R8, and the pin
